@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body { background: #121110; color: #F2EDE6; }
+body {
+  font-family: 'Rubik', 'Heebo', 'Assistant', 'Noto Sans Hebrew', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+button, a, input, select, textarea { touch-action: manipulation; }
+:focus-visible { outline: 2px solid #E8833A; outline-offset: 2px; }
+
+@layer components {
+  .chip { @apply min-h-11 rounded-xl bg-card border border-line text-sm font-semibold tabular-nums active:bg-line; }
+  .btn-primary { @apply min-h-12 rounded-2xl bg-ember text-bg font-bold px-4 flex items-center justify-center text-center active:opacity-90; }
+  .btn-secondary { @apply min-h-12 rounded-2xl bg-bg border border-line font-semibold px-4 flex items-center justify-center text-center active:bg-line; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
