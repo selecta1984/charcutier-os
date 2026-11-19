@@ -14,7 +14,7 @@ import {
   type MeatParts,
   type Provenance,
 } from '../engine';
-import { useApp } from '../store';
+import { useApp, useRecipe } from '../store';
 import { Badge, Card, Notice, Row, SectionTitle, StatusPill, Term } from './components';
 
 export function ButcherActions({ parts, roundTo10, title = 'הודעה לקצב' }: { parts: MeatParts; roundTo10: boolean; title?: string }) {
@@ -50,6 +50,11 @@ export function SafetyPanel({ f }: { f: Formulation }) {
   const { cure, profileId, scaleResolution, go } = useApp();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const r = evaluateCure(f, cure, profile, scaleResolution);
+  const warnings = r.warnings.map((w) => (
+    <div key={w.code} className="mb-3">
+      <Notice tone="warn">{w.message}</Notice>
+    </div>
+  ));
   const approved = r.status === 'approved';
   return (
     <Card className={approved ? '' : 'border-bad/50'}>
@@ -57,6 +62,7 @@ export function SafetyPanel({ f }: { f: Formulation }) {
         <h2 className="text-sm font-semibold text-muted">בטיחות וקיור</h2>
         {approved ? <StatusPill tone="ok">מינון קיור מאושר</StatusPill> : <StatusPill tone="bad">חסום לייצור</StatusPill>}
       </div>
+      {warnings}
       {!approved && (
         <>
           <p className="text-sm mb-2">המשקלים מוצגים לתכנון בלבד. מה חסר:</p>
@@ -142,7 +148,8 @@ export function Results({
   showButcher?: boolean;
   needs?: { title: string; rows: Need[]; note?: string } | null;
 }) {
-  const { cure, profileId, scaleResolution } = useApp();
+  const { cure, profileId, scaleResolution, go } = useApp();
+  const recipe = useRecipe();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const gate = evaluateCure(f, cure, profile, scaleResolution);
   const fatDev = f.fatPercent - SOURCE_RECIPE.fatFraction * 100;
@@ -185,6 +192,12 @@ export function Results({
       </Step>
 
       <Step n={++n} title="לאמולסיה">
+        <button type="button" onClick={() => go('recipe')} className="w-full text-right text-sm rounded-2xl bg-bg border border-line px-3 py-2 mb-1 flex justify-between items-center">
+          <span>
+            גרסה {recipe.version}: {recipe.version === 1 ? 'מקור (מלח + מעט מלח קיור)' : 'כל המלח כמלח קיור'}
+          </span>
+          <span className="text-ember">החלף</span>
+        </button>
         {emulsion.map((l) => {
           const isCure = l.category === 'cure';
           const blocked = isCure && gate.status === 'blocked';
@@ -227,7 +240,7 @@ export function Results({
       {showButcher && <ButcherActions parts={{ coarse: f.coarse, fine: f.fine, fat: f.fat }} roundTo10={false} />}
 
       <p className="text-xs text-muted leading-relaxed px-1">
-        לפי {SOURCE_RECIPE.name}: 70% בשר רזה ו-30% שומן, מהבשר 4/7 גס ו-3/7 דק, קרח 15%. המספרים מעוגלים לתצוגה בלבד.
+        לפי {recipe.name} (גרסה {recipe.version}): 70% בשר רזה ו-30% שומן, מהבשר 4/7 גס ו-3/7 דק, קרח 15%. המספרים מעוגלים לתצוגה בלבד.
       </p>
     </div>
   );

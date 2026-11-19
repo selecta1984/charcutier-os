@@ -1,4 +1,4 @@
-import type { Recipe, RegulatoryProfile } from './types';
+import type { CureProduct, Recipe, RegulatoryProfile } from './types';
 
 const perKg = (gramsPer5kg: number) => gramsPer5kg / 5;
 
@@ -26,6 +26,46 @@ export const SOURCE_RECIPE: Recipe = {
     { id: 'brownsugar', name: 'סוכר חום', category: 'sugar', gramsPerKgMeatBlock: perKg(50), safetyCritical: false, requiresVerification: true, provenance: 'needs_verification', enabled: true, note: 'מופיע באפיון v1, לא נראה בתמונה' },
     { id: 'phosphate', name: 'פוספט', category: 'phosphate', gramsPerKgMeatBlock: 0, role: 'בהתאם לסוגו, עשוי לסייע בהחזקת מים ומיצוי חלבונים', safetyCritical: true, requiresVerification: true, provenance: 'needs_verification', enabled: false, note: 'רישום ידני בדף, לא מפוענח. כבוי עד הגדרה' },
   ],
+};
+
+/**
+ * Recipe v2 — same total salt as the source (19 g per kg meat block), all of it as 0.6% curing salt.
+ * Follows the supplier's guidance for heat-treated products (15–20 g). Source v1 stays untouched.
+ */
+export const ALL_CURE_RECIPE: Recipe = {
+  ...SOURCE_RECIPE,
+  id: 'emulsion-beef-v2-all-cure',
+  name: 'נקניקיות אמולסיה בקר — כל המלח כמלח קיור',
+  version: 2,
+  source: 'נגזר ממתכון המקור. מלח רגיל 15 + מלח קיור 4 גרם לק״ג → מלח קיור 19 גרם לק״ג',
+  additives: SOURCE_RECIPE.additives.map((a) =>
+    a.category === 'salt'
+      ? { ...a, enabled: false, note: 'מוחלף במלח קיור' }
+      : a.category === 'cure'
+        ? {
+            ...a,
+            gramsPerKgMeatBlock: 19,
+            provenance: 'recommendation' as const,
+            note: 'הספק: למוצר שעובר טיפול תרמי 15–20 גרם. כאן 19 — אותה כמות מלח כוללת כמו במקור',
+          }
+        : a,
+  ),
+};
+
+export const RECIPES: Recipe[] = [SOURCE_RECIPE, ALL_CURE_RECIPE];
+
+/** the user's curing salt — from the pack label and the supplier's answers (19.11.2026) */
+export const SUPPLIER_CURE: CureProduct = {
+  name: 'מלח כיור 0.6% (ניטריט)',
+  manufacturer: 'תבליני בר (ר.ב) בע״מ, ברקן · דרך הספק ארטיום',
+  nitriteFraction: 0.006,
+  containsNitrate: 'no',
+  restIsSalt: 'yes',
+  labelInstructions: 'אין מינון יצרן. לפי הספק: מוצר שעובר טיפול תרמי 15–20 גרם, מוצר יבש 25–30 גרם (לק״ג בשר).',
+  verified: true,
+  verifiedSource: 'תווית: 0.6% ניטריט. הספק ארטיום: ניטריט בלבד (בלי ניטראט), 99.4% מלח שולחן',
+  verifiedAt: '2026-11-19',
+  bestBefore: '2025-03-06',
 };
 
 export const REGULATORY_PROFILES: RegulatoryProfile[] = [

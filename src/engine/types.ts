@@ -45,6 +45,8 @@ export interface CureProduct {
   verified: boolean;
   verifiedSource: string;
   verifiedAt: string | null;
+  /** date printed on the pack (YYYY-MM-DD), if any */
+  bestBefore?: string | null;
 }
 
 export interface RegulatoryProfile {

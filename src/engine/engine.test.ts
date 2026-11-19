@@ -285,3 +285,37 @@ describe('הודעה לקצב — השלמה', () => {
     expect(msg).toContain('190 גרם בשר בטחינה גסה');
   });
 });
+
+describe('גרסה 2: כל המלח כמלח קיור', () => {
+  it('19 גרם מלח קיור לק״ג, בלי מלח רגיל, 114 ppm, אותו מקדם תערובת', async () => {
+    const { ALL_CURE_RECIPE, SUPPLIER_CURE } = await import('./index');
+    const f = fromMeatBlock(ALL_CURE_RECIPE, 2000 / 0.7);
+    expect(f.lines.find((l) => l.category === 'salt')).toBeUndefined();
+    expect(f.lines.find((l) => l.category === 'cure')!.grams).toBeCloseTo((19 * 2000) / 0.7 / 1000, 9);
+    expect(batchFactor(ALL_CURE_RECIPE)).toBeCloseTo(batchFactor(R), 12);
+    const r = evaluateCure(f, SUPPLIER_CURE, EU, 1, '2024-01-01');
+    expect(r.ppm).toBeCloseTo(114, 9);
+    expect(r.status).toBe('approved');
+    expect(r.totalSaltPercentOfMeatBlock).toBeCloseTo(1.9 * 0.994, 9);
+  });
+  it('המקור לא השתנה', () => {
+    expect(R.additives.find((a) => a.id === 'salt')!.enabled).toBe(true);
+    expect(R.additives.find((a) => a.id === 'cure')!.gramsPerKgMeatBlock).toBe(4);
+  });
+});
+
+describe('מוצר הספק ותאריך אריזה', () => {
+  it('מאומת: 0.6%, בלי ניטראט, השאר מלח', async () => {
+    const { SUPPLIER_CURE } = await import('./index');
+    expect(SUPPLIER_CURE.verified).toBe(true);
+    expect(SUPPLIER_CURE.containsNitrate).toBe('no');
+    expect(SUPPLIER_CURE.nitriteFraction).toBe(0.006);
+  });
+  it('תאריך שעבר → אזהרה, לא חסימה', async () => {
+    const { SUPPLIER_CURE } = await import('./index');
+    const r = evaluateCure(fromMeatBlock(R, 5000), SUPPLIER_CURE, EU, 1, '2026-11-19');
+    expect(r.warnings.map((w) => w.code)).toContain('EXPIRED');
+    expect(r.status).toBe('approved');
+    expect(evaluateCure(fromMeatBlock(R, 5000), SUPPLIER_CURE, EU, 1, '2025-01-01').warnings).toHaveLength(0);
+  });
+});

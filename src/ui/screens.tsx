@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   REGULATORY_PROFILES,
-  SOURCE_RECIPE as R,
+  SOURCE_RECIPE,
+  RECIPES,
   analyzeInventory,
   checkSaltSwap,
   evaluateCure,
@@ -19,7 +20,7 @@ import {
   signed,
   type Formulation,
 } from '../engine';
-import { DEFAULT_CURE, exportData, useApp, type Screen, type WeightBasis } from '../store';
+import { DEFAULT_CURE, exportData, useApp, useRecipe, type Screen, type WeightBasis } from '../store';
 import { Card, Notice, NumberField, Row, SectionTitle, Segmented, StatusPill } from './components';
 import { ButcherActions, Results } from './Results';
 
@@ -58,6 +59,7 @@ const LABEL: Partial<Record<Screen, string>> = { weight: 'יש לי בשר', inv
 
 export function Home() {
   const { go, lastWork, cure, profileId, scaleResolution } = useApp();
+  const R = useRecipe();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const gate = evaluateCure(fromMeatBlock(R, 5000), cure, profile, scaleResolution);
   return (
@@ -108,7 +110,7 @@ export function Home() {
 
       <div className="grid grid-cols-2 gap-3 mt-3">
         <button type="button" onClick={() => go('recipe')} className="btn-secondary">
-          מתכון המקור
+          המתכון · גרסה {R.version}
         </button>
         <button type="button" onClick={() => go('backup')} className="btn-secondary">
           גיבוי ושחזור
@@ -144,6 +146,7 @@ function weightNeeds(basis: WeightBasis, f: Formulation) {
 
 export function WeightScreen() {
   const { weight, set } = useApp();
+  const R = useRecipe();
   const basis = BASES.find((b) => b.value === weight.basis)!;
   const [more, setMore] = useState(weight.basis !== 'lean');
   const loss = weight.basis === 'batch' ? weight.lossPct / 100 : 0;
@@ -193,6 +196,7 @@ export function WeightScreen() {
 
 export function InventoryScreen() {
   const { inventory: inv, set } = useApp();
+  const R = useRecipe();
   const upd = (p: Partial<typeof inv>) => set('inventory', { ...inv, ...p });
   const a = safe(() => analyzeInventory(R, { coarse: inv.coarse, fine: inv.fine, fat: inv.fat }, inv.declaredLean));
   const [showDeclared, setShowDeclared] = useState(inv.declaredLean != null);
@@ -303,6 +307,7 @@ export function InventoryScreen() {
 
 export function CountScreen() {
   const { count: c, set } = useApp();
+  const R = useRecipe();
   const upd = (p: Partial<typeof c>) => set('count', { ...c, ...p });
   const casing = safe(() => linkWeightG(c.diameterMm, c.lengthCm, c.density));
   const each = c.useCasing ? casing.value ?? 0 : c.gramsEach;
@@ -374,8 +379,9 @@ export function CountScreen() {
 
 export function RoundingScreen() {
   const { rounding: rd, set } = useApp();
+  const R = useRecipe();
   const upd = (p: Partial<typeof rd>) => set('rounding', { ...rd, ...p });
-  const res = useMemo(() => safe(() => roundForButcher(R, rd.target, rd.step, rd.tol)), [rd.target, rd.step, rd.tol]);
+  const res = useMemo(() => safe(() => roundForButcher(R, rd.target, rd.step, rd.tol)), [R, rd.target, rd.step, rd.tol]);
   const opts = res.value?.options ?? [];
   const sel = opts[Math.min(rd.selected, opts.length - 1)];
   const f = sel ? safe(() => formulateFromParts(R, sel.parts, { kind: 'rounded', value: rd.target })).value : null;
@@ -456,10 +462,11 @@ export function RoundingScreen() {
 
 export function CureScreen() {
   const { cure, set, profileId, scaleResolution } = useApp();
+  const R = useRecipe();
   const c = cure ?? DEFAULT_CURE;
   const upd = (p: Partial<typeof c>) => set('cure', { ...c, ...p });
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
-  const swap = checkSaltSwap(R, c, profile);
+  const swap = checkSaltSwap(SOURCE_RECIPE, c, profile);
   const canVerify = c.verifiedSource.trim().length >= 3 && c.nitriteFraction != null && c.containsNitrate !== 'unknown';
 
   return (
@@ -501,7 +508,17 @@ export function CureScreen() {
           ]}
           onChange={(v) => upd({ restIsSalt: v as typeof c.restIsSalt })}
         />
-        <TextField label="הוראות מינון היצרן" value={c.labelInstructions} onChange={(v) => upd({ labelInstructions: v })} multiline />
+        <TextField label="הוראות מינון (יצרן / ספק)" value={c.labelInstructions} onChange={(v) => upd({ labelInstructions: v })} multiline />
+        <label className="block mb-4">
+          <span className="block text-sm text-muted mb-1.5">להשתמש לפני (מהאריזה)</span>
+          <input
+            type="date"
+            dir="ltr"
+            className="w-full rounded-2xl bg-bg border border-line px-4 py-3 min-h-12 text-right"
+            value={c.bestBefore ?? ''}
+            onChange={(e) => upd({ bestBefore: e.target.value || null })}
+          />
+        </label>
       </Card>
 
       <Card className={c.verified ? 'border-ok/50' : 'border-bad/50'}>
@@ -571,16 +588,16 @@ export function CureScreen() {
         <p className="text-xs text-muted mt-2">זו בדיקה בלבד. המתכון המקורי לא משתנה.</p>
       </Card>
 
-      <CureBaselineNote ppm={evaluateCure(fromMeatBlock(R, 5000), c, profile, scaleResolution).ppm} />
+      <CureBaselineNote ppm={evaluateCure(fromMeatBlock(R, 5000), c, profile, scaleResolution).ppm} recipeName={R.name} />
     </Shell>
   );
 }
 
-function CureBaselineNote({ ppm }: { ppm: number | null }) {
+function CureBaselineNote({ ppm, recipeName }: { ppm: number | null; recipeName: string }) {
   if (ppm == null) return null;
   return (
     <Notice tone="info">
-      במתכון המקור עם המוצר הזה: <b>{grams(ppm)} מ״ג ניטריט לק״ג</b> בשר+שומן. המערכת לא קובעת מינימום אפקטיבי — אין לה מקור מאומת לכך. ערך נמוך מאוד שווה בדיקה מקצועית.
+      ב{recipeName.split('—')[1]?.trim() ?? 'מתכון'} עם המוצר הזה: <b>{grams(ppm)} מ״ג ניטריט לק״ג</b> בשר+שומן. המערכת לא קובעת מינימום אפקטיבי — אין לה מקור מאומת לכך. ערך נמוך מאוד שווה בדיקה מקצועית.
     </Notice>
   );
 }
@@ -613,9 +630,42 @@ function SelectField({ label, value, options, onChange }: { label: string; value
 /* ---------------- Recipe ---------------- */
 
 export function RecipeScreen() {
+  const R = useRecipe();
+  const { recipeId, set, cure, profileId, scaleResolution } = useApp();
+  const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const f = fromMeatBlock(R, 5000);
   return (
-    <Shell title="מתכון המקור">
+    <Shell title="המתכון">
+      <Card>
+        <SectionTitle>איזו גרסה להכין?</SectionTitle>
+        <div className="space-y-2" role="radiogroup" aria-label="גרסת מתכון">
+          {RECIPES.map((r) => {
+            const rep = evaluateCure(fromMeatBlock(r, 1000), cure, profile, scaleResolution);
+            const salt = r.additives.find((x) => x.category === 'salt' && x.enabled)?.gramsPerKgMeatBlock ?? 0;
+            const cureG = r.additives.find((x) => x.category === 'cure' && x.enabled)?.gramsPerKgMeatBlock ?? 0;
+            return (
+              <button
+                key={r.id}
+                type="button"
+                role="radio"
+                aria-checked={recipeId === r.id}
+                onClick={() => set('recipeId', r.id)}
+                className={`w-full text-right rounded-2xl border p-4 ${recipeId === r.id ? 'border-ember bg-ember/10' : 'border-line bg-bg'}`}
+              >
+                <span className="block font-bold">
+                  גרסה {r.version}: {r.version === 1 ? 'מקור' : 'כל המלח כמלח קיור'}
+                </span>
+                <span className="block text-sm text-muted mt-1">
+                  לכל ק״ג בשר+שומן: {salt > 0 ? `מלח ${grams(salt)} + ` : ''}מלח קיור {grams(cureG)} גרם
+                  {rep.ppm != null && ` · ניטריט ${grams(rep.ppm)} מ״ג/ק״ג`}
+                </span>
+                {r.version === 2 && <span className="block text-xs text-muted mt-1">לפי הנחיית הספק (15–20 גרם למוצר מבושל). אותה כמות מלח כוללת, צבע וקיור חזקים יותר.</span>}
+                {r.version === 1 && <span className="block text-xs text-muted mt-1">כמו בדף המתכון. ניטריט נמוך מאוד.</span>}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
       <Notice tone="info">
         גרסה {R.version}, נעולה. מקור: {R.source}. זהו תיעוד של המתכון, לא אישור בטיחות.
       </Notice>
@@ -625,7 +675,7 @@ export function RecipeScreen() {
         <Row name="שומן בקר (שומן בוקס עדיף)" value="1,500" badge="source" sub='דק 3.5 מ"מ' />
         <Row name="קרח" value="750" badge="source" />
         {R.additives.map((a) => (
-          <Row key={a.id} name={a.name} value={a.enabled ? grams(a.gramsPerKgMeatBlock * 5) : 'כבוי'} badge={a.provenance} sub={a.note} />
+          <Row key={a.id} name={a.name} value={a.enabled ? grams(a.gramsPerKgMeatBlock * 5) : 'לא בשימוש'} badge={a.provenance} sub={a.note} />
         ))}
         <Row name="סה״כ תערובת" value={grams(f.batch)} badge="calc" strong />
       </Card>

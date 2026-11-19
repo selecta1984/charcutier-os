@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { CureProduct } from './engine';
+import type { CureProduct, Recipe } from './engine';
+import { RECIPES, SUPPLIER_CURE } from './engine';
 import { DEFAULT_TOLERANCES, type RoundingTolerances } from './engine';
 
 export type Screen = 'home' | 'weight' | 'inventory' | 'count' | 'rounding' | 'cure' | 'backup' | 'recipe';
@@ -15,6 +16,7 @@ export interface AppState {
   count: { count: number; gramsEach: number; lossPct: number; useCasing: boolean; diameterMm: number; lengthCm: number; density: number };
   rounding: { target: number; step: number; tol: RoundingTolerances; selected: number };
   cure: CureProduct | null;
+  recipeId: string;
   profileId: string | null;
   scaleResolution: number;
   go: (s: Screen) => void;
@@ -73,7 +75,8 @@ export const useApp = create<AppState>()(
       inventory: { coarse: 719, fine: 680, fat: 600, declaredLean: null, option: 'asis' },
       count: { count: 50, gramsEach: 60, lossPct: 5, useCasing: false, diameterMm: 28, lengthCm: 12, density: 1 },
       rounding: { target: 2500, step: 100, tol: DEFAULT_TOLERANCES, selected: 0 },
-      cure: DEFAULT_CURE,
+      cure: SUPPLIER_CURE,
+      recipeId: RECIPES[0].id,
       profileId: 'eu-2023-2108',
       scaleResolution: 1,
       go: (s) => {
@@ -90,7 +93,7 @@ export const useApp = create<AppState>()(
         const d = data as Record<string, unknown>;
         if (d.app !== 'charcutier-os') throw new Error('הקובץ אינו גיבוי של מעבדת הנקניקיות');
         const s = d.state as Partial<AppState>;
-        const allowed: (keyof AppState)[] = ['weight', 'inventory', 'count', 'rounding', 'cure', 'profileId', 'scaleResolution'];
+        const allowed: (keyof AppState)[] = ['weight', 'inventory', 'count', 'rounding', 'cure', 'recipeId', 'profileId', 'scaleResolution'];
         const patch: Partial<AppState> = {};
         for (const k of allowed) if (k in s) (patch as Record<string, unknown>)[k] = s[k];
         set(patch);
@@ -98,11 +101,14 @@ export const useApp = create<AppState>()(
     }),
     {
       name: PERSIST_KEY,
-      version: 2,
+      version: 3,
       // v2: "יש לי בשר" starts from lean meat
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         if (version < 2) p.weight = { basis: 'lean', value: 2000, lossPct: 0 };
+        // v3: curing salt verified from the label and the supplier
+        if (version < 3 && (!p.cure || !p.cure.verified)) p.cure = SUPPLIER_CURE;
+        if (!p.recipeId) p.recipeId = RECIPES[0].id;
         return p as AppState;
       },
       storage: createJSONStorage(() => safeStorage),
@@ -114,6 +120,7 @@ export const useApp = create<AppState>()(
         count: s.count,
         rounding: s.rounding,
         cure: s.cure,
+        recipeId: s.recipeId,
         profileId: s.profileId,
         scaleResolution: s.scaleResolution,
       }),
@@ -121,10 +128,15 @@ export const useApp = create<AppState>()(
   ),
 );
 
+export function useRecipe(): Recipe {
+  const id = useApp((s) => s.recipeId);
+  return RECIPES.find((r) => r.id === id) ?? RECIPES[0];
+}
+
 export function exportData(s: AppState): string {
-  const { weight, inventory, count, rounding, cure, profileId, scaleResolution } = s;
+  const { weight, inventory, count, rounding, cure, recipeId, profileId, scaleResolution } = s;
   return JSON.stringify(
-    { app: 'charcutier-os', version: 1, exportedAt: new Date().toISOString(), state: { weight, inventory, count, rounding, cure, profileId, scaleResolution } },
+    { app: 'charcutier-os', version: 1, exportedAt: new Date().toISOString(), state: { weight, inventory, count, rounding, cure, recipeId, profileId, scaleResolution } },
     null,
     2,
   );

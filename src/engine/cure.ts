@@ -3,13 +3,15 @@ import type { CureProduct, Formulation, Recipe, RegulatoryProfile } from './type
 export type GateStatus = 'approved' | 'blocked';
 
 export interface GateIssue {
-  code: 'NO_PRODUCT' | 'NO_FRACTION' | 'NOT_VERIFIED' | 'NO_PROFILE' | 'OVER_LIMIT' | 'SCALE' | 'NITRATE_UNKNOWN';
+  code: 'NO_PRODUCT' | 'NO_FRACTION' | 'NOT_VERIFIED' | 'NO_PROFILE' | 'OVER_LIMIT' | 'SCALE' | 'NITRATE_UNKNOWN' | 'EXPIRED';
   message: string;
 }
 
 export interface CureReport {
   status: GateStatus;
   issues: GateIssue[];
+  /** shown, but do not block */
+  warnings: GateIssue[];
   cureGrams: number;
   nitriteMg: number | null;
   /** mg sodium nitrite per kg meat block */
@@ -31,6 +33,7 @@ export function evaluateCure(
   product: CureProduct | null,
   profile: RegulatoryProfile | null,
   scaleResolutionGrams = 1,
+  today: string = new Date().toISOString().slice(0, 10),
 ): CureReport {
   const cureLine = f.lines.find((l) => l.category === 'cure');
   const saltLine = f.lines.find((l) => l.category === 'salt');
@@ -63,15 +66,23 @@ export function evaluateCure(
       message: `${round1(cureGrams)} גרם קיור קטן מדי למשקל ברזולוציה ${scaleResolutionGrams} גרם — צריך משקל מדויק יותר`,
     });
 
+  const warnings: GateIssue[] = [];
+  if (product?.bestBefore && product.bestBefore < today)
+    warnings.push({
+      code: 'EXPIRED',
+      message: `על האריזה כתוב "להשתמש לפני ${formatDate(product.bestBefore)}" — התאריך עבר. ניטריט עלול להתפרק עם הזמן, והקיור יהיה חלש מהמחושב. מומלץ אריזה טרייה.`,
+    });
+
   let totalSaltGrams: number | null = null;
-  if (saltLine) {
-    if (cureGrams === 0) totalSaltGrams = saltLine.grams;
-    else if (product?.restIsSalt === 'yes' && fraction != null) totalSaltGrams = saltLine.grams + cureGrams * (1 - fraction);
-  }
+  // regular salt may be absent when all salt comes from the curing salt
+  const regularSalt = saltLine?.grams ?? 0;
+  if (cureGrams === 0) totalSaltGrams = saltLine ? regularSalt : null;
+  else if (product?.restIsSalt === 'yes' && fraction != null) totalSaltGrams = regularSalt + cureGrams * (1 - fraction);
 
   return {
     status: issues.length === 0 ? 'approved' : 'blocked',
     issues,
+    warnings,
     cureGrams,
     nitriteMg,
     ppm,
@@ -107,3 +118,8 @@ export function checkSaltSwap(
 }
 
 const round1 = (x: number) => Math.round(x * 10) / 10;
+
+function formatDate(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
