@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   REGULATORY_PROFILES,
   SOURCE_RECIPE,
   butcherMessage,
   evaluateCure,
   grams,
+  grams1,
+  gramsInt,
   pct,
   signed,
   whatsappLink,
   type Formulation,
   type MeatParts,
+  type Provenance,
 } from '../engine';
 import { useApp } from '../store';
-import { Card, Notice, Row, SectionTitle, StatusPill, Term } from './components';
+import { Badge, Card, Notice, Row, SectionTitle, StatusPill, Term } from './components';
 
 export function ButcherActions({ parts, roundTo10, title = 'הודעה לקצב' }: { parts: MeatParts; roundTo10: boolean; title?: string }) {
   const msg = butcherMessage(SOURCE_RECIPE, parts, roundTo10);
@@ -90,98 +93,141 @@ export function SafetyPanel({ f }: { f: Formulation }) {
   );
 }
 
-export function Results({ f, partsProvenance = 'calc', showButcher = true }: { f: Formulation; partsProvenance?: 'calc' | 'user'; showButcher?: boolean }) {
+export interface Need {
+  name: string;
+  grams: number;
+}
+
+function Step({ n, title, children, tone = 'default' }: { n: number; title: string; children: ReactNode; tone?: 'default' | 'accent' }) {
+  return (
+    <Card className={tone === 'accent' ? 'border-ember/60' : ''}>
+      <div className="flex items-center gap-3 mb-2">
+        <span className="size-8 shrink-0 rounded-full bg-ember text-bg font-black grid place-items-center">{n}</span>
+        <h2 className="text-lg font-bold">{title}</h2>
+      </div>
+      {children}
+    </Card>
+  );
+}
+
+function SheetRow({ name, value, sub, warn, badge }: { name: ReactNode; value: string; sub?: ReactNode; warn?: ReactNode; badge?: Provenance }) {
+  return (
+    <div className="py-3 border-b border-line last:border-0">
+      <div className="flex items-baseline gap-2">
+        <span className="flex-1 text-[17px]">{name}</span>
+        {badge && <Badge p={badge} />}
+        <span className="tabular-nums font-black text-2xl" dir="ltr">
+          {value}
+        </span>
+        <span className="text-sm text-muted w-8">גרם</span>
+      </div>
+      {warn && <div className="text-xs text-bad mt-1">{warn}</div>}
+      {sub && <div className="text-xs text-muted mt-1 leading-relaxed">{sub}</div>}
+    </div>
+  );
+}
+
+/**
+ * Work sheet: numbered steps in the order you actually work —
+ * what to get, how to grind, what goes into the emulsion, total.
+ */
+export function Results({
+  f,
+  partsProvenance = 'calc',
+  showButcher = true,
+  needs,
+}: {
+  f: Formulation;
+  partsProvenance?: 'calc' | 'user';
+  showButcher?: boolean;
+  needs?: { title: string; rows: Need[]; note?: string } | null;
+}) {
   const { cure, profileId, scaleResolution } = useApp();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const gate = evaluateCure(f, cure, profile, scaleResolution);
-  const meatLines = f.lines.filter((l) => l.category === 'meat' || l.category === 'fat');
-  const addLines = f.lines.filter((l) => !['meat', 'fat', 'ice'].includes(l.category));
   const fatDev = f.fatPercent - SOURCE_RECIPE.fatFraction * 100;
   const grindDev = f.coarsePercentOfLean - SOURCE_RECIPE.coarseShareOfLean * 100;
-  const smallOnScale = addLines.filter((l) => l.category !== 'cure' && l.grams > 0 && l.grams < scaleResolution * 10);
+  const hasDeviation = Math.abs(fatDev) >= 0.05 || Math.abs(grindDev) >= 0.05;
+  const emulsion = f.lines.filter((l) => !['meat', 'fat'].includes(l.category));
+  const smallOnScale = emulsion.filter((l) => l.category !== 'cure' && l.category !== 'ice' && l.grams > 0 && l.grams < scaleResolution * 10);
+  const shownNeeds = needs?.rows.filter((r) => r.grams >= 0.5) ?? [];
+  let n = 0;
+  const { coarseMm, fineMm } = SOURCE_RECIPE.grinding;
 
   return (
     <div className="space-y-4" aria-live="polite">
-      <Card className="bg-gradient-to-b from-ember/15 to-card">
-        <p className="text-sm text-muted">
-          <Term help="המשקל הכולל של כל מה שנכנס לקערה: בשר, שומן, קרח, מלח ותבלינים. זה מה שיהיה זמין למילוי לפני אובדן.">תערובת סופית</Term>
-        </p>
-        <p className="text-5xl font-black tabular-nums mt-1" dir="ltr" style={{ textAlign: 'right' }}>
-          {grams(f.batch)} <span className="text-xl font-medium text-muted">גרם</span>
-        </p>
-        <p className="text-sm text-muted mt-2">
-          מתוכה{' '}
-          <Term help="בשר רזה + שומן מוסף בלבד. היחס 70/30 והקרח (15%) והתבלינים מחושבים ממנו.">בשר+שומן</Term>: <b className="text-text">{grams(f.meatBlock)} גרם</b> · קרח {grams(f.ice)} · תבלינים ותוספים {grams(f.additivesTotal)}
-        </p>
-        {f.expectedAfterLoss != null && (
-          <p className="text-sm text-muted mt-1">
-            צפוי אחרי אובדן {pct(f.lossFraction * 100)}: <b className="text-text">{grams(f.expectedAfterLoss)} גרם</b> <span className="text-amber-300">(הנחה)</span>
-          </p>
-        )}
-      </Card>
+      {needs && (
+        <Step n={++n} title={needs.title} tone="accent">
+          {shownNeeds.length > 0 ? (
+            shownNeeds.map((r) => <SheetRow key={r.name} name={r.name} value={gramsInt(r.grams)} />)
+          ) : (
+            <p className="text-sm text-muted py-2">לא צריך להשלים כלום.</p>
+          )}
+          {needs.note && <p className="text-xs text-muted mt-2">{needs.note}</p>}
+        </Step>
+      )}
 
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          ['בשר רזה', f.lean],
-          ['שומן', f.fat],
-          ['קרח', f.ice],
-        ].map(([n, v]) => (
-          <div key={n as string} className="rounded-3xl bg-card border border-line p-3 text-center">
-            <p className="text-xs text-muted">{n}</p>
-            <p className="text-2xl font-black tabular-nums mt-1">{grams(v as number)}</p>
-            <p className="text-[11px] text-muted">גרם</p>
+      <Step n={++n} title="טחינה">
+        <SheetRow name={<>בשר רזה · דיסקית גסה <b>{coarseMm} מ"מ</b></>} value={gramsInt(f.coarse)} badge={partsProvenance === 'user' ? 'user' : undefined} />
+        <SheetRow name={<>בשר רזה · דיסקית דקה <b>{fineMm} מ"מ</b></>} value={gramsInt(f.fine)} badge={partsProvenance === 'user' ? 'user' : undefined} />
+        <SheetRow name={<>שומן בקר · דיסקית דקה <b>{fineMm} מ"מ</b></>} value={gramsInt(f.fat)} badge={partsProvenance === 'user' ? 'user' : undefined} />
+        <p className="text-xs text-muted mt-2">כל חלק בנפרד, קר מאוד.</p>
+        {hasDeviation && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            <StatusPill tone={Math.abs(fatDev) <= 1 ? 'warn' : 'bad'}>
+              שומן {pct(f.fatPercent, 2)} ({signed(fatDev, 2)} מול 30%)
+            </StatusPill>
+            <StatusPill tone={Math.abs(grindDev) <= 3 ? 'warn' : 'bad'}>
+              גס {pct(f.coarsePercentOfLean, 1)} מהבשר ({signed(grindDev)} מול 57.1%)
+            </StatusPill>
           </div>
-        ))}
-      </div>
+        )}
+      </Step>
 
-      <Card>
-        <SectionTitle>חלוקת טחינה</SectionTitle>
-        {meatLines.map((l) => (
-          <Row key={l.id} name={l.name} value={grams(l.grams)} badge={partsProvenance} />
-        ))}
-        <div className="flex flex-wrap gap-2 mt-3">
-          <StatusPill tone={Math.abs(fatDev) < 0.05 ? 'ok' : Math.abs(fatDev) <= 1 ? 'warn' : 'bad'}>
-            <Term help="שומן מוסף מתוך בשר+שומן. לא כולל שומן טבעי שבתוך הבשר הרזה — הוא לא ידוע.">שומן מוסף</Term> {pct(f.fatPercent, 2)}
-            {Math.abs(fatDev) >= 0.005 && ` (${signed(fatDev, 2)})`}
-          </StatusPill>
-          <StatusPill tone={Math.abs(grindDev) < 0.05 ? 'ok' : Math.abs(grindDev) <= 3 ? 'warn' : 'bad'}>
-            גס מתוך הרזה {pct(f.coarsePercentOfLean, 1)}
-            {Math.abs(grindDev) >= 0.05 && ` (${signed(grindDev)})`}
-          </StatusPill>
-        </div>
-      </Card>
-
-      <Card>
-        <SectionTitle>תבלינים ותוספים</SectionTitle>
-        {addLines.map((l) => (
-          <Row
-            key={l.id}
-            name={
-              <>
-                {l.name}
-                {l.category === 'cure' && gate.status === 'blocked' && <span className="text-bad text-xs mr-2">לא מאושר</span>}
-              </>
-            }
-            value={grams(l.grams)}
-            badge={l.category === 'cure' ? (gate.status === 'approved' ? 'calc' : 'needs_verification') : l.provenance}
-            sub={l.note}
-          />
-        ))}
+      <Step n={++n} title="לאמולסיה">
+        {emulsion.map((l) => {
+          const isCure = l.category === 'cure';
+          const blocked = isCure && gate.status === 'blocked';
+          return (
+            <SheetRow
+              key={l.id}
+              name={l.name}
+              value={l.category === 'ice' ? gramsInt(l.grams) : grams1(l.grams)}
+              badge={isCure ? (blocked ? 'needs_verification' : undefined) : l.requiresVerification ? 'needs_verification' : undefined}
+              warn={blocked ? 'לא מאושר לשימוש עד אימות התווית — ראה "בטיחות וקיור"' : undefined}
+              sub={!isCure && l.requiresVerification ? l.note : undefined}
+            />
+          );
+        })}
         {smallOnScale.length > 0 && (
           <div className="mt-3">
             <Notice tone="warn">
-              {smallOnScale.map((l) => l.name).join(', ')} — כמות קטנה מדי למשקל ברזולוציה {scaleResolution} גרם (טעות מעל 10%). מומלץ משקל 0.1 או 0.01 גרם.
+              {smallOnScale.map((l) => l.name).join(', ')} — קטן מדי למשקל ברזולוציה {scaleResolution} גרם (טעות מעל 10%). מומלץ משקל 0.1 גרם.
             </Notice>
           </div>
         )}
-      </Card>
+      </Step>
+
+      <Step n={++n} title="סה״כ תערובת למילוי">
+        <p className="text-5xl font-black tabular-nums text-ember" dir="ltr" style={{ textAlign: 'right' }}>
+          {gramsInt(f.batch)} <span className="text-xl font-medium text-muted">גרם</span>
+        </p>
+        <p className="text-sm text-muted mt-2 leading-relaxed">
+          בשר ושומן {gramsInt(f.meatBlock)} + קרח {gramsInt(f.ice)} + מלח ותבלינים {grams1(f.additivesTotal)}
+        </p>
+        {f.expectedAfterLoss != null && (
+          <p className="text-sm text-muted mt-1">
+            אחרי אובדן {pct(f.lossFraction * 100)} נשארים בערך <b className="text-text">{gramsInt(f.expectedAfterLoss)} גרם</b> (הנחה)
+          </p>
+        )}
+      </Step>
 
       <SafetyPanel f={f} />
 
-      {showButcher && <ButcherActions parts={{ coarse: f.coarse, fine: f.fine, fat: f.fat }} roundTo10={partsProvenance === 'calc'} />}
+      {showButcher && <ButcherActions parts={{ coarse: f.coarse, fine: f.fine, fat: f.fat }} roundTo10={false} />}
 
       <p className="text-xs text-muted leading-relaxed px-1">
-        מבוסס על {SOURCE_RECIPE.name} (גרסה {SOURCE_RECIPE.version}): 70% בשר רזה / 30% שומן מוסף, גס 4/7 מהרזה, קרח 15%. המספרים מעוגלים לתצוגה בלבד.
+        לפי {SOURCE_RECIPE.name}: 70% בשר רזה ו-30% שומן, מהבשר 4/7 גס ו-3/7 דק, קרח 15%. המספרים מעוגלים לתצוגה בלבד.
       </p>
     </div>
   );

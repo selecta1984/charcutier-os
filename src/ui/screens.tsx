@@ -49,13 +49,12 @@ export function Shell({ title, children }: { title: string; children: ReactNode 
 /* ---------------- Home ---------------- */
 
 const MODES: { s: Screen; title: string; sub: string; icon: string }[] = [
-  { s: 'weight', title: 'לפי משקל', sub: 'בשר, שומן או תערובת מוכנה', icon: '⚖️' },
-  { s: 'inventory', title: 'לפי מה שיש לי', sub: 'בשר שכבר נטחן בבית', icon: '🥩' },
+  { s: 'inventory', title: 'בשר שכבר טחון', sub: 'יש לי גס, דק ושומן — מה עכשיו?', icon: '🥩' },
   { s: 'count', title: 'לפי מספר נקניקיות', sub: 'כמות × משקל, או לפי מעטפת', icon: '🌭' },
   { s: 'rounding', title: 'מספרים עגולים לקצב', sub: 'הזמנה נוחה בלי להרוס יחסים', icon: '🔪' },
 ];
 
-const LABEL: Partial<Record<Screen, string>> = { weight: 'לפי משקל', inventory: 'לפי מה שיש לי', count: 'לפי מספר נקניקיות', rounding: 'מספרים עגולים לקצב' };
+const LABEL: Partial<Record<Screen, string>> = { weight: 'יש לי בשר', inventory: 'בשר שכבר טחון', count: 'לפי מספר נקניקיות', rounding: 'מספרים עגולים לקצב' };
 
 export function Home() {
   const { go, lastWork, cure, profileId, scaleResolution } = useApp();
@@ -77,15 +76,23 @@ export function Home() {
         </button>
       )}
 
-      <div className="grid grid-cols-2 gap-3 mt-6">
+      <button type="button" onClick={() => go('weight')} className="mt-6 w-full text-right rounded-3xl bg-ember text-bg p-5 active:scale-[0.99] transition">
+        <span className="block text-3xl" aria-hidden>
+          ⚖️
+        </span>
+        <span className="block text-2xl font-black mt-2">יש לי בשר</span>
+        <span className="block text-sm font-medium mt-1 opacity-80">כותבים כמה בשר — מקבלים שומן, טחינה ומשקלים מדויקים לאמולסיה</span>
+      </button>
+
+      <div className="mt-3 space-y-3">
         {MODES.map((m) => (
-          <button key={m.s} type="button" onClick={() => go(m.s)} className="text-right rounded-3xl bg-card border border-line p-4 min-h-36 flex flex-col justify-between active:scale-[0.98] transition">
+          <button key={m.s} type="button" onClick={() => go(m.s)} className="w-full text-right rounded-3xl bg-card border border-line p-4 flex items-center gap-4 active:scale-[0.99] transition">
             <span className="text-3xl" aria-hidden>
               {m.icon}
             </span>
             <span>
               <span className="block font-bold text-lg leading-tight">{m.title}</span>
-              <span className="block text-xs text-muted mt-1">{m.sub}</span>
+              <span className="block text-sm text-muted mt-0.5">{m.sub}</span>
             </span>
           </button>
         ))}
@@ -117,15 +124,28 @@ export function Home() {
 /* ---------------- By weight ---------------- */
 
 const BASES: { value: WeightBasis; label: string; field: string; hint: string }[] = [
-  { value: 'meatBlock', label: 'בשר+שומן', field: 'כמה בשר ושומן יחד?', hint: 'הבסיס של המתכון. 70% בשר רזה, 30% שומן מוסף.' },
-  { value: 'lean', label: 'בשר רזה', field: 'כמה בשר רזה יש לי?', hint: 'השומן יחושב ביחס 3/7 מהבשר הרזה.' },
-  { value: 'fat', label: 'שומן', field: 'כמה שומן יש לי?', hint: 'הבשר הרזה יחושב ביחס 7/3 מהשומן.' },
-  { value: 'batch', label: 'תערובת מוכנה', field: 'כמה תערובת מוכנה למילוי אני רוצה?', hint: 'כולל קרח, מלח ותבלינים. המערכת מחשבת לאחור את הבשר והשומן.' },
+  { value: 'lean', label: 'בשר רזה', field: 'כמה בשר רזה יש לך?', hint: 'משקל הבשר לפני טחינה. המערכת מחשבת שומן, טחינה וכל מה שנכנס לאמולסיה.' },
+  { value: 'fat', label: 'שומן', field: 'כמה שומן יש לך?', hint: 'המערכת מחשבת כמה בשר רזה צריך ואת כל השאר.' },
+  { value: 'meatBlock', label: 'בשר+שומן', field: 'כמה בשר ושומן יחד?', hint: '70% בשר רזה, 30% שומן.' },
+  { value: 'batch', label: 'תערובת מוכנה', field: 'כמה תערובת מוכנה למילוי אתה רוצה?', hint: 'כולל קרח, מלח ותבלינים. המערכת מחשבת לאחור.' },
 ];
+
+function weightNeeds(basis: WeightBasis, f: Formulation) {
+  if (basis === 'lean') return { title: 'מה להשלים', rows: [{ name: 'שומן בקר', grams: f.fat }] };
+  if (basis === 'fat') return { title: 'מה להשלים', rows: [{ name: 'בשר בקר רזה', grams: f.lean }] };
+  return {
+    title: 'מה צריך',
+    rows: [
+      { name: 'בשר בקר רזה', grams: f.lean },
+      { name: 'שומן בקר', grams: f.fat },
+    ],
+  };
+}
 
 export function WeightScreen() {
   const { weight, set } = useApp();
   const basis = BASES.find((b) => b.value === weight.basis)!;
+  const [more, setMore] = useState(weight.basis !== 'lean');
   const loss = weight.basis === 'batch' ? weight.lossPct / 100 : 0;
   const r = safe<Formulation>(() =>
     weight.basis === 'meatBlock'
@@ -137,25 +157,34 @@ export function WeightScreen() {
           : fromBatch(R, weight.value, loss),
   );
   return (
-    <Shell title="לפי משקל">
+    <Shell title="יש לי בשר">
       <Card>
-        <Segmented label="מה אני יודע?" options={BASES.map(({ value, label }) => ({ value, label }))} value={weight.basis} onChange={(b) => set('weight', { ...weight, basis: b })} />
         <NumberField label={basis.field} value={weight.value} min={1} onChange={(v) => set('weight', { ...weight, value: v })} hint={basis.hint} />
-        {weight.basis === 'batch' && (
-          <NumberField
-            label="אובדן צפוי במילוי"
-            unit="%"
-            value={weight.lossPct}
-            min={0}
-            max={50}
-            steps={[1, 5]}
-            decimals={1}
-            onChange={(v) => set('weight', { ...weight, lossPct: v })}
-            hint="הנחה שלך. התערובת תוגדל כך שאחרי האובדן יישאר המשקל שביקשת."
-          />
+        {more ? (
+          <>
+            <p className="text-sm text-muted mb-2">מה אני יודע?</p>
+            <Segmented label="נקודת התחלה" options={BASES.map(({ value, label }) => ({ value, label }))} value={weight.basis} onChange={(b) => set('weight', { ...weight, basis: b })} />
+            {weight.basis === 'batch' && (
+              <NumberField
+                label="אובדן צפוי במילוי"
+                unit="%"
+                value={weight.lossPct}
+                min={0}
+                max={50}
+                steps={[1, 5]}
+                decimals={1}
+                onChange={(v) => set('weight', { ...weight, lossPct: v })}
+                hint="הנחה שלך. התערובת תוגדל כך שאחרי האובדן יישאר המשקל שביקשת."
+              />
+            )}
+          </>
+        ) : (
+          <button type="button" className="text-sm text-ember underline min-h-11" onClick={() => setMore(true)}>
+            אפשרויות נוספות: להתחיל משומן או מכמות תערובת
+          </button>
         )}
       </Card>
-      {r.value ? <Results f={r.value} /> : <Notice tone="bad">{r.error}</Notice>}
+      {r.value ? <Results f={r.value} needs={weightNeeds(weight.basis, r.value)} /> : <Notice tone="bad">{r.error}</Notice>}
     </Shell>
   );
 }
@@ -176,7 +205,7 @@ export function InventoryScreen() {
   }
 
   return (
-    <Shell title="לפי מה שיש לי">
+    <Shell title="בשר שכבר טחון">
       <Card>
         <NumberField label={`בשר רזה טחון גס (${R.grinding.coarseMm} מ"מ)`} value={inv.coarse} onChange={(v) => upd({ coarse: v })} />
         <NumberField label={`בשר רזה טחון דק (${R.grinding.fineMm} מ"מ)`} value={inv.fine} onChange={(v) => upd({ fine: v })} />
@@ -225,22 +254,8 @@ export function InventoryScreen() {
               onChange={(o) => upd({ option: o })}
             />
             {inv.option === 'asis' && <p className="text-sm text-muted">עובדים עם כל מה שיש. הקרח והתבלינים לפי {grams(a.value.meatBlock)} גרם בשר+שומן. היחסים נשארים עם הסטייה שלמעלה.</p>}
-            {inv.option === 'complete' && (
-              <>
-                <p className="text-sm text-muted mb-2">כמה להוסיף כדי לחזור ליחס המדויק (בלי לזרוק כלום):</p>
-                <Row name="להוסיף בשר גס" value={grams(a.value.complete.add.coarse)} badge="calc" />
-                <Row name="להוסיף בשר דק" value={grams(a.value.complete.add.fine)} badge="calc" />
-                <Row name="להוסיף שומן" value={grams(a.value.complete.add.fat)} badge="calc" />
-              </>
-            )}
-            {inv.option === 'part' && (
-              <>
-                <p className="text-sm text-muted mb-2">משתמשים רק בחלק כדי לשמור על היחס. להשאיר בצד:</p>
-                <Row name="בשר גס בצד" value={grams(a.value.usePart.leftover.coarse)} badge="calc" />
-                <Row name="בשר דק בצד" value={grams(a.value.usePart.leftover.fine)} badge="calc" />
-                <Row name="שומן בצד" value={grams(a.value.usePart.leftover.fat)} badge="calc" />
-              </>
-            )}
+            {inv.option === 'complete' && <p className="text-sm text-muted">משלימים את מה שחסר כדי לחזור ליחס המדויק, בלי לזרוק כלום.</p>}
+            {inv.option === 'part' && <p className="text-sm text-muted">משתמשים רק בחלק כדי לשמור על היחס המדויק. השאר נשאר בצד.</p>}
           </Card>
 
           {inv.option === 'complete' && (
@@ -250,7 +265,34 @@ export function InventoryScreen() {
               roundTo10
             />
           )}
-          {f && <Results f={f} partsProvenance={inv.option === 'asis' ? 'user' : 'calc'} showButcher={false} />}
+          {f && (
+            <Results
+              f={f}
+              partsProvenance={inv.option === 'asis' ? 'user' : 'calc'}
+              showButcher={false}
+              needs={
+                inv.option === 'complete'
+                  ? {
+                      title: 'מה להשלים',
+                      rows: [
+                        { name: `בשר רזה גס ${R.grinding.coarseMm} מ"מ`, grams: a.value.complete.add.coarse },
+                        { name: `בשר רזה דק ${R.grinding.fineMm} מ"מ`, grams: a.value.complete.add.fine },
+                        { name: `שומן דק ${R.grinding.fineMm} מ"מ`, grams: a.value.complete.add.fat },
+                      ],
+                    }
+                  : inv.option === 'part'
+                    ? {
+                        title: 'להשאיר בצד',
+                        rows: [
+                          { name: 'בשר גס', grams: a.value.usePart.leftover.coarse },
+                          { name: 'בשר דק', grams: a.value.usePart.leftover.fine },
+                          { name: 'שומן', grams: a.value.usePart.leftover.fat },
+                        ],
+                      }
+                    : null
+              }
+            />
+          )}
         </>
       )}
     </Shell>
@@ -310,7 +352,16 @@ export function CountScreen() {
             {Math.round(c.count)} × {grams(each)} = <b>{grams(Math.round(c.count) * each)} גרם</b> ממולא. עם אובדן {pct(c.lossPct)} מכינים {grams(r.value.batch)} גרם תערובת.
             {each > 0 && <> בלי אובדן היו יוצאות {linksFromMass(r.value.batch, each)} נקניקיות.</>}
           </Notice>
-          <Results f={r.value} />
+          <Results
+            f={r.value}
+            needs={{
+              title: 'מה צריך',
+              rows: [
+                { name: 'בשר בקר רזה', grams: r.value.lean },
+                { name: 'שומן בקר', grams: r.value.fat },
+              ],
+            }}
+          />
         </>
       ) : (
         <Notice tone="bad">{r.error}</Notice>

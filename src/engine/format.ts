@@ -13,6 +13,16 @@ export function grams(g: number): string {
   return nf2.format(g);
 }
 
+/** whole grams — for meat and fat */
+export function gramsInt(g: number): string {
+  return nf0.format(Math.round(g));
+}
+
+/** one decimal — for spices, salt, cure */
+export function grams1(g: number): string {
+  return nf1.format(Math.round(g * 10) / 10);
+}
+
 export function pct(x: number, digits = 1): string {
   return new Intl.NumberFormat('he-IL', { maximumFractionDigits: digits }).format(x) + '%';
 }

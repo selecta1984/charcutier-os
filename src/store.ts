@@ -69,7 +69,7 @@ export const useApp = create<AppState>()(
     (set) => ({
       screen: 'home',
       lastWork: null,
-      weight: { basis: 'meatBlock', value: 2500, lossPct: 0 },
+      weight: { basis: 'lean', value: 2000, lossPct: 0 },
       inventory: { coarse: 719, fine: 680, fat: 600, declaredLean: null, option: 'asis' },
       count: { count: 50, gramsEach: 60, lossPct: 5, useCasing: false, diameterMm: 28, lengthCm: 12, density: 1 },
       rounding: { target: 2500, step: 100, tol: DEFAULT_TOLERANCES, selected: 0 },
@@ -98,7 +98,13 @@ export const useApp = create<AppState>()(
     }),
     {
       name: PERSIST_KEY,
-      version: 1,
+      version: 2,
+      // v2: "יש לי בשר" starts from lean meat
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Partial<AppState>;
+        if (version < 2) p.weight = { basis: 'lean', value: 2000, lossPct: 0 };
+        return p as AppState;
+      },
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         screen: s.screen,
