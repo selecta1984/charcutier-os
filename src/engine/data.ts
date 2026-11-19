@@ -8,7 +8,7 @@ export const SOURCE_RECIPE: Recipe = {
   name: 'נקניקיות אמולסיה בקר — מתכון מקור',
   version: 1,
   locked: true,
-  source: 'דף המתכון המצולם',
+  source: 'דף המתכון "נקניקית עגל קנקר׳ס" (MEATSHOPS)',
   fatFraction: 0.3,
   coarseShareOfLean: 4 / 7,
   iceFraction: 0.15,
@@ -22,9 +22,7 @@ export const SOURCE_RECIPE: Recipe = {
     { id: 'mace', name: 'משיה', category: 'spice', gramsPerKgMeatBlock: perKg(7.5), safetyCritical: false, requiresVerification: false, provenance: 'source', enabled: true },
     { id: 'caraway', name: 'קימל טחון', category: 'spice', gramsPerKgMeatBlock: perKg(25), safetyCritical: false, requiresVerification: false, provenance: 'source', enabled: true },
     { id: 'dextrose', name: 'סוכר ענבים', category: 'sugar', gramsPerKgMeatBlock: perKg(50), role: 'איזון טעם', safetyCritical: false, requiresVerification: false, provenance: 'source', enabled: true },
-    { id: 'nutmeg', name: 'מוסקט טחון', category: 'spice', gramsPerKgMeatBlock: perKg(2.5), safetyCritical: false, requiresVerification: true, provenance: 'needs_verification', enabled: true, note: 'לא מופיע בדף המתכון שצילמת — מחכה לאישורך' },
-    { id: 'brownsugar', name: 'סוכר חום', category: 'sugar', gramsPerKgMeatBlock: perKg(50), safetyCritical: false, requiresVerification: true, provenance: 'needs_verification', enabled: true, note: 'לא מופיע בדף המתכון שצילמת — מחכה לאישורך' },
-    { id: 'phosphate', name: 'פוספט', category: 'phosphate', gramsPerKgMeatBlock: 0, role: 'בהתאם לסוגו, עשוי לסייע בהחזקת מים ומיצוי חלבונים', safetyCritical: true, requiresVerification: true, provenance: 'needs_verification', enabled: false, note: 'רישום ידני בדף, לא מפוענח. כבוי עד הגדרה' },
+    { id: 'phosphate', name: 'פוספט', category: 'phosphate', gramsPerKgMeatBlock: 0, role: 'בהתאם לסוגו, עשוי לסייע בהחזקת מים ומיצוי חלבונים', safetyCritical: true, requiresVerification: true, provenance: 'needs_verification', enabled: false, note: 'בדף בכתב יד: 6 גרם ל-5 ק״ג (0.12%). סוג הפוספט לא ידוע — כבוי עד שיוגדר' },
   ],
 };
 

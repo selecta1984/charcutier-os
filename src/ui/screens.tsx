@@ -21,6 +21,7 @@ import {
   type Formulation,
 } from '../engine';
 import { CHANGELOG } from '../changelog';
+import { buildCookSteps } from '../cook/steps';
 import { DEFAULT_CURE, exportData, useApp, useRecipe, type Screen, type WeightBasis } from '../store';
 import { Card, Notice, NumberField, Row, SectionTitle, Segmented, StatusPill } from './components';
 import { ButcherActions, Results } from './Results';
@@ -59,7 +60,7 @@ const MODES: { s: Screen; title: string; sub: string; icon: string }[] = [
 const LABEL: Partial<Record<Screen, string>> = { weight: 'יש לי בשר', inventory: 'בשר שכבר טחון', count: 'לפי מספר נקניקיות', rounding: 'מספרים עגולים לקצב' };
 
 export function Home() {
-  const { go, lastWork, cure, profileId, scaleResolution } = useApp();
+  const { go, lastWork, cure, profileId, scaleResolution, cook } = useApp();
   const R = useRecipe();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const gate = evaluateCure(fromMeatBlock(R, 5000), cure, profile, scaleResolution);
@@ -68,6 +69,18 @@ export function Home() {
       <p className="text-ember text-sm font-semibold tracking-wide">מעבדת הנקניקיות</p>
       <h1 className="text-4xl font-black mt-1">מה מכינים היום?</h1>
       <p className="text-muted mt-2">מהבשר ועד הביס. בדיוק.</p>
+
+      {cook && (
+        <button type="button" onClick={() => go('cook')} className="mt-6 w-full text-right rounded-3xl border-2 border-ok/60 bg-ok/10 p-4 flex items-center gap-3">
+          <span className="text-2xl">▶</span>
+          <span>
+            <span className="block font-bold">ממשיכים בהכנה</span>
+            <span className="block text-sm text-muted">
+              שלב {cook.step + 1} מתוך {buildCookSteps(cook.snapshot).length} · {buildCookSteps(cook.snapshot)[Math.min(cook.step, buildCookSteps(cook.snapshot).length - 1)].title}
+            </span>
+          </span>
+        </button>
+      )}
 
       {lastWork && (
         <button type="button" onClick={() => go(lastWork)} className="mt-6 w-full text-right rounded-3xl border border-ember/50 bg-ember/10 p-4 flex items-center gap-3">
@@ -118,7 +131,7 @@ export function Home() {
         </button>
       </div>
       <p className="text-xs text-muted mt-8 leading-relaxed">
-        בקרוב: אשף הכנה שלב אחר שלב, יומן נגלות, השוואות ואבחון תקלות.
+        בקרוב: יומן נגלות, השוואות ואבחון תקלות.
       </p>
       <button type="button" onClick={() => go('changelog')} className="mt-3 text-xs text-muted underline min-h-11">
         גרסה {__APP_VERSION__} · מה חדש
@@ -683,38 +696,7 @@ export function RecipeScreen() {
         ))}
         <Row name="סה״כ תערובת" value={grams(f.batch)} badge="calc" strong />
       </Card>
-      <PendingConfirmations />
     </Shell>
-  );
-}
-
-function PendingConfirmations() {
-  const { confirmations, set } = useApp();
-  const items = SOURCE_RECIPE.additives.filter((a) => a.provenance === 'needs_verification' && a.category !== 'phosphate');
-  return (
-    <Card>
-      <SectionTitle>לאישורך: לא מופיעים בדף המתכון שצילמת</SectionTitle>
-      {items.map((a) => {
-        const c = confirmations[a.id];
-        return (
-          <div key={a.id} className="py-3 border-b border-line last:border-0">
-            <p className="mb-2">
-              {a.name} — {grams(a.gramsPerKgMeatBlock * 5)} גרם ל-5 ק״ג
-              {c && <span className="text-sm text-muted"> · {c === 'keep' ? 'נשאר במתכון' : 'הוסר'}</span>}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" className={c === 'keep' ? 'btn-primary' : 'btn-secondary'} onClick={() => set('confirmations', { ...confirmations, [a.id]: 'keep' })}>
-                כן, יש במתכון
-              </button>
-              <button type="button" className={c === 'remove' ? 'btn-primary' : 'btn-secondary'} onClick={() => set('confirmations', { ...confirmations, [a.id]: 'remove' })}>
-                לא, להוריד
-              </button>
-            </div>
-          </div>
-        );
-      })}
-      <p className="text-xs text-muted mt-3">פוספט — רישום ידני בדף שלא פוענח. נשאר כבוי.</p>
-    </Card>
   );
 }
 

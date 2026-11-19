@@ -1,4 +1,5 @@
 import { useApp } from './store';
+import { CookMode } from './ui/CookMode';
 import { BackupScreen, ChangelogScreen, CountScreen, CureScreen, Home, InventoryScreen, RecipeScreen, RoundingScreen, WeightScreen } from './ui/screens';
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
     case 'recipe': return <RecipeScreen />;
     case 'backup': return <BackupScreen />;
     case 'changelog': return <ChangelogScreen />;
+    case 'cook': return <CookMode />;
     default: return <Home />;
   }
 }

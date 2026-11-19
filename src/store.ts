@@ -3,9 +3,24 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { CureProduct, Recipe } from './engine';
 import { RECIPES, SUPPLIER_CURE } from './engine';
+import type { CookSnapshot } from './cook/steps';
 import { DEFAULT_TOLERANCES, type RoundingTolerances } from './engine';
 
-export type Screen = 'home' | 'weight' | 'inventory' | 'count' | 'rounding' | 'cure' | 'backup' | 'recipe' | 'changelog';
+export type Screen = 'home' | 'weight' | 'inventory' | 'count' | 'rounding' | 'cure' | 'backup' | 'recipe' | 'changelog' | 'cook';
+
+export interface TimerState {
+  /** epoch ms when running, null when paused */
+  endsAt: number | null;
+  /** ms left when paused */
+  remainingMs: number;
+}
+
+export interface CookState {
+  snapshot: CookSnapshot;
+  step: number;
+  checks: Record<string, boolean>;
+  timers: Record<string, TimerState>;
+}
 export type WeightBasis = 'meatBlock' | 'lean' | 'fat' | 'batch';
 export type InventoryOption = 'asis' | 'complete' | 'part';
 
@@ -22,8 +37,12 @@ export interface AppState {
   confirmations: Record<string, 'keep' | 'remove'>;
   profileId: string | null;
   scaleResolution: number;
+  cook: CookState | null;
   go: (s: Screen) => void;
-  set: <K extends keyof Omit<AppState, 'go' | 'set' | 'importData'>>(k: K, v: AppState[K]) => void;
+  startCook: (snap: CookSnapshot) => void;
+  patchCook: (p: Partial<CookState>) => void;
+  endCook: () => void;
+  set: <K extends keyof Omit<AppState, 'go' | 'set' | 'importData' | 'startCook' | 'patchCook' | 'endCook'>>(k: K, v: AppState[K]) => void;
   importData: (data: unknown) => void;
 }
 
@@ -83,6 +102,10 @@ export const useApp = create<AppState>()(
       confirmations: {},
       profileId: 'eu-2023-2108',
       scaleResolution: 1,
+      cook: null,
+      startCook: (snapshot) => set({ cook: { snapshot, step: 0, checks: {}, timers: {} }, screen: 'cook' }),
+      patchCook: (p) => set((st) => (st.cook ? { cook: { ...st.cook, ...p } } : {})),
+      endCook: () => set({ cook: null, screen: 'home' }),
       go: (s) => {
         set((st) => ({ screen: s, lastWork: WORK.includes(s) ? s : st.lastWork }));
         try {
@@ -129,6 +152,7 @@ export const useApp = create<AppState>()(
         confirmations: s.confirmations,
         profileId: s.profileId,
         scaleResolution: s.scaleResolution,
+        cook: s.cook,
       }),
     },
   ),

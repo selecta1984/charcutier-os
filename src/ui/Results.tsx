@@ -15,6 +15,7 @@ import {
   type Provenance,
 } from '../engine';
 import { useApp, useRecipe } from '../store';
+import { buildCookSteps, makeSnapshot } from '../cook/steps';
 import { Badge, Card, Notice, Row, SectionTitle, StatusPill, Term } from './components';
 
 export function ButcherActions({ parts, roundTo10, title = 'הודעה לקצב' }: { parts: MeatParts; roundTo10: boolean; title?: string }) {
@@ -158,7 +159,7 @@ export function Results({
   showButcher?: boolean;
   needs?: { title: string; rows: Need[]; note?: string } | null;
 }) {
-  const { cure, profileId, scaleResolution, go } = useApp();
+  const { cure, profileId, scaleResolution, go, cook, startCook } = useApp();
   const recipe = useRecipe();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const gate = evaluateCure(f, cure, profile, scaleResolution);
@@ -244,6 +245,24 @@ export function Results({
           </p>
         )}
       </Step>
+
+      <div className="space-y-2">
+        <button
+          type="button"
+          className="btn-primary w-full min-h-16 text-xl disabled:opacity-40"
+          disabled={gate.status === 'blocked'}
+          onClick={() => startCook(makeSnapshot(f, recipe))}
+        >
+          ▶ {cook ? 'התחל הכנה חדשה' : 'התחל הכנה'}
+        </button>
+        <p className="text-xs text-muted text-center">
+          {gate.status === 'blocked'
+            ? 'קודם צריך לפתור את חסימת הקיור (למטה).'
+            : cook
+              ? `יש הכנה פתוחה (שלב ${cook.step + 1} מתוך ${buildCookSteps(cook.snapshot).length}) — התחלה חדשה תחליף אותה.`
+              : 'שלב אחר שלב עם המשקלים האלה, טיימרים ובדיקות.'}
+        </p>
+      </div>
 
       <SafetyPanel f={f} />
 
