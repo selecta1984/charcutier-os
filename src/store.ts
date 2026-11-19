@@ -1,10 +1,11 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { CureProduct, Recipe } from './engine';
 import { RECIPES, SUPPLIER_CURE } from './engine';
 import { DEFAULT_TOLERANCES, type RoundingTolerances } from './engine';
 
-export type Screen = 'home' | 'weight' | 'inventory' | 'count' | 'rounding' | 'cure' | 'backup' | 'recipe';
+export type Screen = 'home' | 'weight' | 'inventory' | 'count' | 'rounding' | 'cure' | 'backup' | 'recipe' | 'changelog';
 export type WeightBasis = 'meatBlock' | 'lean' | 'fat' | 'batch';
 export type InventoryOption = 'asis' | 'complete' | 'part';
 
@@ -17,6 +18,8 @@ export interface AppState {
   rounding: { target: number; step: number; tol: RoundingTolerances; selected: number };
   cure: CureProduct | null;
   recipeId: string;
+  /** user's answer for source items that are not on the photographed page */
+  confirmations: Record<string, 'keep' | 'remove'>;
   profileId: string | null;
   scaleResolution: number;
   go: (s: Screen) => void;
@@ -77,6 +80,7 @@ export const useApp = create<AppState>()(
       rounding: { target: 2500, step: 100, tol: DEFAULT_TOLERANCES, selected: 0 },
       cure: SUPPLIER_CURE,
       recipeId: RECIPES[0].id,
+      confirmations: {},
       profileId: 'eu-2023-2108',
       scaleResolution: 1,
       go: (s) => {
@@ -93,7 +97,7 @@ export const useApp = create<AppState>()(
         const d = data as Record<string, unknown>;
         if (d.app !== 'charcutier-os') throw new Error('הקובץ אינו גיבוי של מעבדת הנקניקיות');
         const s = d.state as Partial<AppState>;
-        const allowed: (keyof AppState)[] = ['weight', 'inventory', 'count', 'rounding', 'cure', 'recipeId', 'profileId', 'scaleResolution'];
+        const allowed: (keyof AppState)[] = ['weight', 'inventory', 'count', 'rounding', 'cure', 'recipeId', 'confirmations', 'profileId', 'scaleResolution'];
         const patch: Partial<AppState> = {};
         for (const k of allowed) if (k in s) (patch as Record<string, unknown>)[k] = s[k];
         set(patch);
@@ -109,6 +113,7 @@ export const useApp = create<AppState>()(
         // v3: curing salt verified from the label and the supplier
         if (version < 3 && (!p.cure || !p.cure.verified)) p.cure = SUPPLIER_CURE;
         if (!p.recipeId) p.recipeId = RECIPES[0].id;
+        if (!p.confirmations) p.confirmations = {};
         return p as AppState;
       },
       storage: createJSONStorage(() => safeStorage),
@@ -121,6 +126,7 @@ export const useApp = create<AppState>()(
         rounding: s.rounding,
         cure: s.cure,
         recipeId: s.recipeId,
+        confirmations: s.confirmations,
         profileId: s.profileId,
         scaleResolution: s.scaleResolution,
       }),
@@ -128,15 +134,31 @@ export const useApp = create<AppState>()(
   ),
 );
 
+/** recipe with the user's answers applied: confirmed items lose the "to verify" flag, removed items are switched off */
+export function applyConfirmations(r: Recipe, c: Record<string, 'keep' | 'remove'>): Recipe {
+  if (!c || Object.keys(c).length === 0) return r;
+  return {
+    ...r,
+    additives: r.additives.map((a) =>
+      c[a.id] === 'remove'
+        ? { ...a, enabled: false, requiresVerification: false, provenance: 'user' as const, note: 'הוסר לפי אישורך' }
+        : c[a.id] === 'keep'
+          ? { ...a, requiresVerification: false, provenance: 'user' as const, note: 'אושר על ידך' }
+          : a,
+    ),
+  };
+}
+
 export function useRecipe(): Recipe {
   const id = useApp((s) => s.recipeId);
-  return RECIPES.find((r) => r.id === id) ?? RECIPES[0];
+  const conf = useApp((s) => s.confirmations);
+  return useMemo(() => applyConfirmations(RECIPES.find((r) => r.id === id) ?? RECIPES[0], conf), [id, conf]);
 }
 
 export function exportData(s: AppState): string {
   const { weight, inventory, count, rounding, cure, recipeId, profileId, scaleResolution } = s;
   return JSON.stringify(
-    { app: 'charcutier-os', version: 1, exportedAt: new Date().toISOString(), state: { weight, inventory, count, rounding, cure, recipeId, profileId, scaleResolution } },
+    { app: 'charcutier-os', version: 1, exportedAt: new Date().toISOString(), state: { weight, inventory, count, rounding, cure, recipeId, confirmations: s.confirmations, profileId, scaleResolution } },
     null,
     2,
   );

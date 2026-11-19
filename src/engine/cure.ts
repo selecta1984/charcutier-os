@@ -3,7 +3,7 @@ import type { CureProduct, Formulation, Recipe, RegulatoryProfile } from './type
 export type GateStatus = 'approved' | 'blocked';
 
 export interface GateIssue {
-  code: 'NO_PRODUCT' | 'NO_FRACTION' | 'NOT_VERIFIED' | 'NO_PROFILE' | 'OVER_LIMIT' | 'SCALE' | 'NITRATE_UNKNOWN' | 'EXPIRED';
+  code: 'NO_PRODUCT' | 'NO_FRACTION' | 'NOT_VERIFIED' | 'NO_PROFILE' | 'OVER_LIMIT' | 'SCALE' | 'NITRATE_UNKNOWN' | 'EXPIRED' | 'SCALE_PRECISION';
   message: string;
 }
 
@@ -60,13 +60,24 @@ export function evaluateCure(
         message: `${round1(ppm)} מ"ג/ק"ג חורג מהמגבלה ${profile.maxPpmAsSodiumNitrite} (${profile.name})`,
       });
   }
-  if (cureGrams > 0 && cureGrams < scaleResolutionGrams * 20)
-    issues.push({
-      code: 'SCALE',
-      message: `${round1(cureGrams)} גרם קיור קטן מדי למשקל ברזולוציה ${scaleResolutionGrams} גרם — צריך משקל מדויק יותר`,
-    });
 
   const warnings: GateIssue[] = [];
+
+  // weighing error is ± half the scale resolution; it matters through its effect on nitrite
+  if (cureGrams > 0 && fraction != null && fraction > 0 && fraction < 1) {
+    const halfRes = scaleResolutionGrams / 2;
+    const ppmErr = (halfRes * fraction * 1_000_000) / f.meatBlock;
+    if (ppm != null && profile && ppm <= profile.maxPpmAsSodiumNitrite && ppm + ppmErr > profile.maxPpmAsSodiumNitrite + 1e-9)
+      issues.push({
+        code: 'SCALE',
+        message: `טעות שקילה של ±${halfRes} גרם עלולה להעביר את הניטריט מעל ${profile.maxPpmAsSodiumNitrite} — צריך משקל מדויק יותר`,
+      });
+    else if (halfRes / cureGrams > 0.05)
+      warnings.push({
+        code: 'SCALE_PRECISION',
+        message: `במשקל של ${scaleResolutionGrams} גרם, ${round1(cureGrams)} גרם מלח קיור נשקלים בדיוק של ±${round1((halfRes / cureGrams) * 100)}% (±${round1(ppmErr)} מ״ג/ק״ג ניטריט). זה בתוך המגבלה; משקל 0.1 גרם ידייק יותר.`,
+      });
+  }
   if (product?.bestBefore && product.bestBefore < today)
     warnings.push({
       code: 'EXPIRED',

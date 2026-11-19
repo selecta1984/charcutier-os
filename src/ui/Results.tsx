@@ -99,6 +99,16 @@ export function SafetyPanel({ f }: { f: Formulation }) {
   );
 }
 
+const SHORT: Record<string, string> = {
+  NO_PRODUCT: 'לא הוגדר מוצר קיור',
+  NO_FRACTION: 'חסר אחוז ניטריט',
+  NOT_VERIFIED: 'המוצר לא אומת',
+  NITRATE_UNKNOWN: 'לא ידוע אם יש ניטראט',
+  NO_PROFILE: 'אין פרופיל רגולטורי',
+  OVER_LIMIT: 'חורג מהמגבלה',
+  SCALE: 'צריך משקל מדויק יותר',
+};
+
 export interface Need {
   name: string;
   grams: number;
@@ -206,8 +216,8 @@ export function Results({
               key={l.id}
               name={l.name}
               value={l.category === 'ice' ? gramsInt(l.grams) : grams1(l.grams)}
-              badge={isCure ? (blocked ? 'needs_verification' : undefined) : l.requiresVerification ? 'needs_verification' : undefined}
-              warn={blocked ? 'לא מאושר לשימוש עד אימות התווית — ראה "בטיחות וקיור"' : undefined}
+              badge={!isCure && l.requiresVerification ? 'needs_verification' : undefined}
+              warn={blocked ? `לא מאושר: ${gate.issues.map((i) => SHORT[i.code] ?? i.message).join(' · ')} — ראה "בטיחות וקיור"` : undefined}
               sub={!isCure && l.requiresVerification ? l.note : undefined}
             />
           );

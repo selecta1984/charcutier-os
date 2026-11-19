@@ -20,6 +20,7 @@ import {
   signed,
   type Formulation,
 } from '../engine';
+import { CHANGELOG } from '../changelog';
 import { DEFAULT_CURE, exportData, useApp, useRecipe, type Screen, type WeightBasis } from '../store';
 import { Card, Notice, NumberField, Row, SectionTitle, Segmented, StatusPill } from './components';
 import { ButcherActions, Results } from './Results';
@@ -119,6 +120,9 @@ export function Home() {
       <p className="text-xs text-muted mt-8 leading-relaxed">
         בקרוב: אשף הכנה שלב אחר שלב, יומן נגלות, השוואות ואבחון תקלות.
       </p>
+      <button type="button" onClick={() => go('changelog')} className="mt-3 text-xs text-muted underline min-h-11">
+        גרסה {__APP_VERSION__} · מה חדש
+      </button>
     </div>
   );
 }
@@ -578,7 +582,7 @@ export function CureScreen() {
           value={scaleResolution}
           onChange={(v) => set('scaleResolution', v)}
         />
-        <p className="text-xs text-muted">מלח קיור שקטן מפי 20 מהרזולוציה נחסם.</p>
+        <p className="text-xs text-muted">נחסם רק אם טעות השקילה עלולה להעביר את הניטריט מעל המגבלה. אחרת מוצגת הערת דיוק.</p>
       </Card>
 
       <Card>
@@ -679,9 +683,56 @@ export function RecipeScreen() {
         ))}
         <Row name="סה״כ תערובת" value={grams(f.batch)} badge="calc" strong />
       </Card>
-      <Notice tone="warn">
-        לאישורך: מוסקט 2.5 גרם וסוכר חום 50 גרם מופיעים באפיון אבל לא בתמונה ששלחת. כוסברה 25 גרם מופיעה בתמונה. הפוספט כבוי עד שיוגדר.
-      </Notice>
+      <PendingConfirmations />
+    </Shell>
+  );
+}
+
+function PendingConfirmations() {
+  const { confirmations, set } = useApp();
+  const items = SOURCE_RECIPE.additives.filter((a) => a.provenance === 'needs_verification' && a.category !== 'phosphate');
+  return (
+    <Card>
+      <SectionTitle>לאישורך: לא מופיעים בדף המתכון שצילמת</SectionTitle>
+      {items.map((a) => {
+        const c = confirmations[a.id];
+        return (
+          <div key={a.id} className="py-3 border-b border-line last:border-0">
+            <p className="mb-2">
+              {a.name} — {grams(a.gramsPerKgMeatBlock * 5)} גרם ל-5 ק״ג
+              {c && <span className="text-sm text-muted"> · {c === 'keep' ? 'נשאר במתכון' : 'הוסר'}</span>}
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" className={c === 'keep' ? 'btn-primary' : 'btn-secondary'} onClick={() => set('confirmations', { ...confirmations, [a.id]: 'keep' })}>
+                כן, יש במתכון
+              </button>
+              <button type="button" className={c === 'remove' ? 'btn-primary' : 'btn-secondary'} onClick={() => set('confirmations', { ...confirmations, [a.id]: 'remove' })}>
+                לא, להוריד
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      <p className="text-xs text-muted mt-3">פוספט — רישום ידני בדף שלא פוענח. נשאר כבוי.</p>
+    </Card>
+  );
+}
+
+export function ChangelogScreen() {
+  return (
+    <Shell title={`מה חדש · גרסה ${__APP_VERSION__}`}>
+      {CHANGELOG.map((c) => (
+        <Card key={c.version}>
+          <SectionTitle>
+            גרסה {c.version} · {c.date}
+          </SectionTitle>
+          <ul className="space-y-2 text-sm leading-relaxed list-disc pr-5">
+            {c.items.map((i) => (
+              <li key={i}>{i}</li>
+            ))}
+          </ul>
+        </Card>
+      ))}
     </Shell>
   );
 }

@@ -1,5 +1,5 @@
 import { useApp } from './store';
-import { BackupScreen, CountScreen, CureScreen, Home, InventoryScreen, RecipeScreen, RoundingScreen, WeightScreen } from './ui/screens';
+import { BackupScreen, ChangelogScreen, CountScreen, CureScreen, Home, InventoryScreen, RecipeScreen, RoundingScreen, WeightScreen } from './ui/screens';
 
 export default function App() {
   const screen = useApp((s) => s.screen);
@@ -11,6 +11,7 @@ export default function App() {
     case 'cure': return <CureScreen />;
     case 'recipe': return <RecipeScreen />;
     case 'backup': return <BackupScreen />;
+    case 'changelog': return <ChangelogScreen />;
     default: return <Home />;
   }
 }

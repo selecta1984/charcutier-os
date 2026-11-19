@@ -139,11 +139,20 @@ describe('בדיקה 6: מוצר קיור לא מאומת', () => {
     expect(r.status).toBe('approved');
     expect(r.totalSaltGrams).toBeCloseTo(75 + 20 * 0.994, 9);
   });
-  it('קיור קטן מ-20× רזולוציה → חסום', () => {
-    const half = fromMeatBlock(R, 2500); // 10 g cure
-    const r = evaluateCure(half, cure06(true), EU, 1);
-    expect(r.issues.map((i) => i.code)).toContain('SCALE');
-    expect(evaluateCure(half, cure06(true), EU, 0.1).status).toBe('approved');
+  it('0.6% עם משקל של גרם: לא חוסם, רק הערת דיוק כשהטעות מעל 5%', () => {
+    const small = fromMeatBlock(R, 1000); // 4 g cure → ±12.5%
+    const r = evaluateCure(small, cure06(true), EU, 1, '2024-01-01');
+    expect(r.status).toBe('approved');
+    expect(r.warnings.map((w) => w.code)).toContain('SCALE_PRECISION');
+    expect(evaluateCure(fromMeatBlock(R, 5000), cure06(true), EU, 1, '2024-01-01').warnings).toHaveLength(0);
+  });
+  it('טעות שקילה שעלולה לחצות את המגבלה → חסום, ומשקל מדויק משחרר', () => {
+    const near: CureProduct = { ...cure06(true), nitriteFraction: 0.0299 }; // 119.6 ppm
+    const f = fromMeatBlock(R, 5000);
+    const coarse = evaluateCure(f, near, EU, 1, '2024-01-01');
+    expect(coarse.ppm).toBeLessThan(120);
+    expect(coarse.issues.map((i) => i.code)).toContain('SCALE');
+    expect(evaluateCure(f, near, EU, 0.01, '2024-01-01').status).toBe('approved');
   });
   it('חריגה מפרופיל → חסום', () => {
     const strong: CureProduct = { ...cure06(true), nitriteFraction: 0.06 };
