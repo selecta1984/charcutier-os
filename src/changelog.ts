@@ -1,6 +1,16 @@
 /** Newest first. Bump package.json "version" together with a new entry on every release. */
 export const CHANGELOG: { version: string; date: string; items: string[] }[] = [
   {
+    version: '1.5.0',
+    date: '20.11.2026',
+    items: [
+      'פוספט לקוטר נכנס למתכון: 6 גרם ל-5 ק״ג, כמו בדף (1,200 מ״ג/ק״ג, מגבלה באירופה 5,000)',
+      'משיה הוסרה לבקשתך (אפשר להחזיר במסך המתכון)',
+      'מעבד מזון עד 1 ק״ג בשר בכל סבב: המשחה מתחלקת אוטומטית לסבבים, עם קערת תבלינים לכל סבב',
+      'אפשר לשנות את קיבולת המעבד מתחת לכפתור "התחל הכנה"',
+    ],
+  },
+  {
     version: '1.4.0',
     date: '19.11.2026',
     items: [

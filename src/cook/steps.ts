@@ -13,10 +13,18 @@ export interface CookSnapshot {
   fat: number;
   ice: number;
   batch: number;
+  /** food-processor rounds for the paste (fine meat + fat) */
+  rounds: number;
   additives: { id: string; name: string; grams: number; isCure: boolean }[];
 }
 
-export function makeSnapshot(f: Formulation, recipe: Recipe): CookSnapshot {
+/** rounds needed so each run of fine meat + fat stays within the processor's capacity */
+export function processorRounds(fine: number, fat: number, capacity: number): number {
+  if (!(capacity > 0)) return 1;
+  return Math.max(1, Math.ceil((fine + fat) / capacity - 1e-9));
+}
+
+export function makeSnapshot(f: Formulation, recipe: Recipe, processorCapacity = Infinity): CookSnapshot {
   return {
     createdAt: new Date().toISOString(),
     recipeName: recipe.name,
@@ -28,6 +36,7 @@ export function makeSnapshot(f: Formulation, recipe: Recipe): CookSnapshot {
     fat: f.fat,
     ice: f.ice,
     batch: f.batch,
+    rounds: processorRounds(f.fine, f.fat, processorCapacity),
     additives: f.lines
       .filter((l) => !['meat', 'fat', 'ice'].includes(l.category))
       .map((l) => ({ id: l.id, name: l.name, grams: l.grams, isCure: l.category === 'cure' })),
@@ -51,12 +60,17 @@ export interface CookStep {
   checklist?: { id: string; label: string }[];
   amounts?: Amount[];
   amountsTitle?: string;
+  /** second weighing list (e.g. bowl B) */
+  amounts2?: Amount[];
+  amounts2Title?: string;
   target?: string;
   timerMin?: number;
   warn?: string[];
   tip?: string[];
   source?: string;
   confirm?: { id: string; label: string };
+  /** show the explanation above the weighing lists */
+  linesFirst?: boolean;
 }
 
 /** sausages per batch for a 28 mm casing and ~20 cm links (estimate only) */
@@ -72,6 +86,10 @@ export function buildCookSteps(s: CookSnapshot): CookStep[] {
   const mm = (x: number) => `${x} מ״מ`;
   const half: Amount[] = s.additives.map((a) => ({ label: a.name, grams: a.grams / 2, checkId: `w-${a.id}`, emphasis: a.isCure }));
   const links = estimateLinks(s.batch);
+  const n = Math.max(1, s.rounds ?? 1);
+  const bowlNames = Array.from({ length: n }, (_, k) => `א׳${k + 1}`).join(', ');
+  const perRound: Amount[] = s.additives.map((a) => ({ label: a.name, grams: a.grams / 2 / n, checkId: `wa-${a.id}`, emphasis: a.isCure }));
+  const cureWarn = s.additives.some((a) => a.isCure) ? ['מלח קיור — לשקול בדיוק את הכמות שמופיעה, לא "בערך".'] : undefined;
   return [
     {
       id: 'tools',
@@ -86,15 +104,29 @@ export function buildCookSteps(s: CookSnapshot): CookStep[] {
         { id: 't-end', label: 'מעשנה, סיר מים וקערת מי קרח לסוף' },
       ],
     },
-    {
-      id: 'spices',
-      section: 'הכנות',
-      title: 'שוקלים תבלינים לשתי קערות',
-      lines: ['שוקלים את הכמות הזו פעמיים — לקערה א׳ ולקערה ב׳.', 'קערה א׳ נכנסת עם הבשר הדק, קערה ב׳ בסוף.'],
-      amountsTitle: 'בכל קערה',
-      amounts: half,
-      warn: s.additives.some((a) => a.isCure) ? ['מלח קיור — לשקול בדיוק את הכמות שמופיעה, לא "בערך".'] : undefined,
-    },
+    n === 1
+      ? {
+          id: 'spices',
+          linesFirst: true,
+          section: 'הכנות',
+          title: 'שוקלים תבלינים לשתי קערות',
+          lines: ['שוקלים את הכמות הזו פעמיים — לקערה א׳ ולקערה ב׳.', 'קערה א׳ נכנסת עם הבשר הדק, קערה ב׳ בסוף.'],
+          amountsTitle: 'בכל קערה',
+          amounts: half,
+          warn: cureWarn,
+        }
+      : {
+          id: 'spices',
+          linesFirst: true,
+          section: 'הכנות',
+          title: `שוקלים תבלינים ל-${n + 1} קערות`,
+          lines: [`${bowlNames} — אחת לכל סבב במעבד המזון.`, 'קערה ב׳ נכנסת בסוף, עם הבשר הגס.'],
+          amountsTitle: `בכל אחת מהקערות ${bowlNames}`,
+          amounts: perRound,
+          amounts2Title: 'בקערה ב׳ (לסוף)',
+          amounts2: half.map((a) => ({ ...a, checkId: `wb-${a.checkId}` })),
+          warn: cureWarn,
+        },
     {
       id: 'ice',
       section: 'הכנות',
@@ -122,32 +154,43 @@ export function buildCookSteps(s: CookSnapshot): CookStep[] {
       amounts: [{ label: `שומן · דיסקית ${mm(s.fineMm)}`, grams: s.fat }],
       lines: ['מכניסים למקפיא לזמן קצר — הוא צריך להיות קפוא כשמוסיפים אותו למשחה.'],
     },
-    {
-      id: 'paste-spice',
-      section: 'משחה',
-      title: 'בשר דק + קערה א׳',
-      lines: ['מערבבים את קערה א׳ (חצי מהתבלינים) עם הבשר הדק.'],
-      amounts: [{ label: 'בשר דק', grams: s.fine }],
-    },
-    {
-      id: 'paste-process',
-      section: 'משחה',
-      title: 'מעבד מזון + קרח',
-      lines: ['מכניסים למעבד המזון ועובדים בפולסים עד מרקם של משחה.', 'תוך כדי מוסיפים את הקרח בהדרגה — כדי שהבשר יישאר קר.'],
-      amounts: [{ label: 'קרח', grams: s.ice }],
-    },
-    {
-      id: 'paste-fat',
-      section: 'משחה',
-      title: 'מוסיפים את השומן הקפוא',
-      lines: ['מוסיפים למשחה ומערבבים בעדינות.'],
-      amounts: [{ label: 'שומן קפוא', grams: s.fat }],
-    },
+    ...Array.from({ length: n }, (_, k) => {
+      const r = k + 1;
+      const tag = n > 1 ? `סבב ${r}: ` : '';
+      const section = n > 1 ? `משחה · סבב ${r} מתוך ${n}` : 'משחה';
+      const bowl = n > 1 ? `קערה א׳${r}` : 'קערה א׳';
+      const steps: CookStep[] = [
+        {
+          id: `r${r}-spice`,
+          section,
+          title: `${tag}בשר דק + ${bowl}`,
+          lines: [`מערבבים את ${bowl} עם הבשר הדק.`],
+          amounts: [{ label: 'בשר דק', grams: s.fine / n }],
+          tip: n > 1 && r === 1 ? [`מעבד המזון לוקח עד כ-1 ק״ג בשר, לכן המשחה נעשית ב-${n} סבבים זהים.`] : undefined,
+        },
+        {
+          id: `r${r}-process`,
+          section,
+          title: `${tag}מעבד מזון + קרח`,
+          lines: ['מכניסים למעבד המזון ועובדים בפולסים עד מרקם של משחה.', 'תוך כדי מוסיפים את הקרח בהדרגה — כדי שהבשר יישאר קר.'],
+          amounts: [{ label: 'קרח', grams: s.ice / n }],
+        },
+        {
+          id: `r${r}-fat`,
+          section,
+          title: `${tag}מוסיפים שומן קפוא`,
+          lines: ['מוסיפים למשחה ומערבבים בעדינות.', ...(n > 1 ? ['מעבירים את המשחה לקערה הגדולה.'] : [])],
+          amounts: [{ label: 'שומן קפוא', grams: s.fat / n }],
+          tip: n > 1 && r < n ? ['את שאר השומן משאירים במקפיא עד הסבב הבא.'] : undefined,
+        },
+      ];
+      return steps;
+    }).flat(),
     {
       id: 'combine',
       section: 'משחה',
       title: 'מחברים הכול',
-      lines: ['מעבירים את המשחה לקערה הגדולה.', 'מוסיפים את הבשר הגס ואת קערה ב׳ (שאר התבלינים).', 'מערבבים היטב.'],
+      lines: [n > 1 ? 'כל המשחה מכל הסבבים — בקערה הגדולה.' : 'מעבירים את המשחה לקערה הגדולה.', 'מוסיפים את הבשר הגס ואת קערה ב׳ (שאר התבלינים).', 'מערבבים היטב.'],
       amounts: [{ label: 'בשר גס', grams: s.coarse }],
     },
     {

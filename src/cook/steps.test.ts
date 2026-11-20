@@ -35,3 +35,27 @@ describe('מצב הכנה', () => {
     expect(estimateLinks(f.batch)).toBe(Math.floor(f.batch / (Math.PI * 1.4 * 1.4 * 20)));
   });
 });
+
+describe('סבבים במעבד המזון', () => {
+  it('1,897 גרם בשר, מעבד של 1 ק״ג → 2 סבבים, כל סבב חצי', async () => {
+    const { processorRounds } = await import('./steps');
+    const f = fromLean(SOURCE_RECIPE, 1897);
+    expect(processorRounds(f.fine, f.fat, 1000)).toBe(2);
+    const steps = buildCookSteps(makeSnapshot(f, SOURCE_RECIPE, 1000));
+    expect(steps).toHaveLength(20);
+    expect(steps.find((s) => s.id === 'r2-fat')!.amounts![0].grams).toBeCloseTo(f.fat / 2, 9);
+    expect(steps.find((s) => s.id === 'r1-process')!.amounts![0].grams).toBeCloseTo(f.ice / 2, 9);
+    const sp = steps.find((s) => s.id === 'spices')!;
+    const total = sp.amounts!.reduce((a, x) => a + x.grams, 0) * 2 + sp.amounts2!.reduce((a, x) => a + x.grams, 0);
+    expect(total).toBeCloseTo(f.additivesTotal, 9);
+  });
+  it('פוספט ל-1,897 גרם בשר רזה = 3.25 גרם', () => {
+    const f = fromLean(SOURCE_RECIPE, 1897);
+    expect(f.lines.find((l) => l.id === 'phosphate')!.grams).toBeCloseTo(3.252, 9);
+  });
+  it('כמות קטנה → סבב אחד', async () => {
+    const { processorRounds } = await import('./steps');
+    expect(processorRounds(400, 200, 1000)).toBe(1);
+    expect(processorRounds(500, 500, 1000)).toBe(1);
+  });
+});

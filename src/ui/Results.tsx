@@ -15,8 +15,8 @@ import {
   type Provenance,
 } from '../engine';
 import { useApp, useRecipe } from '../store';
-import { buildCookSteps, makeSnapshot } from '../cook/steps';
-import { Badge, Card, Notice, Row, SectionTitle, StatusPill, Term } from './components';
+import { buildCookSteps, makeSnapshot, processorRounds } from '../cook/steps';
+import { Badge, Card, Notice, NumberField, Row, SectionTitle, StatusPill, Term } from './components';
 
 export function ButcherActions({ parts, roundTo10, title = 'הודעה לקצב' }: { parts: MeatParts; roundTo10: boolean; title?: string }) {
   const msg = butcherMessage(SOURCE_RECIPE, parts, roundTo10);
@@ -159,7 +159,9 @@ export function Results({
   showButcher?: boolean;
   needs?: { title: string; rows: Need[]; note?: string } | null;
 }) {
-  const { cure, profileId, scaleResolution, go, cook, startCook } = useApp();
+  const { cure, profileId, scaleResolution, go, cook, startCook, processorCapacity, set } = useApp();
+  const [editCap, setEditCap] = useState(false);
+  const rounds = processorRounds(f.fine, f.fat, processorCapacity);
   const recipe = useRecipe();
   const profile = REGULATORY_PROFILES.find((p) => p.id === profileId) ?? null;
   const gate = evaluateCure(f, cure, profile, scaleResolution);
@@ -251,7 +253,7 @@ export function Results({
           type="button"
           className="btn-primary w-full min-h-16 text-xl disabled:opacity-40"
           disabled={gate.status === 'blocked'}
-          onClick={() => startCook(makeSnapshot(f, recipe))}
+          onClick={() => startCook(makeSnapshot(f, recipe, processorCapacity))}
         >
           ▶ {cook ? 'התחל הכנה חדשה' : 'התחל הכנה'}
         </button>
@@ -262,6 +264,28 @@ export function Results({
               ? `יש הכנה פתוחה (שלב ${cook.step + 1} מתוך ${buildCookSteps(cook.snapshot).length}) — התחלה חדשה תחליף אותה.`
               : 'שלב אחר שלב עם המשקלים האלה, טיימרים ובדיקות.'}
         </p>
+        <div className="rounded-2xl bg-bg border border-line px-4 py-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span>
+              מעבד מזון: {rounds === 1 ? 'סבב אחד' : `${rounds} סבבים`} · עד {gramsInt(processorCapacity)} גרם בשר בכל סבב
+            </span>
+            <button type="button" className="text-ember underline min-h-11 shrink-0" onClick={() => setEditCap((v) => !v)}>
+              {editCap ? 'סגור' : 'שנה'}
+            </button>
+          </div>
+          {editCap && (
+            <div className="mt-3">
+              <NumberField
+                label="כמה בשר (דק + שומן) המעבד שלך לוקח בכל סבב?"
+                value={processorCapacity}
+                min={200}
+                max={10000}
+                steps={[100, 250]}
+                onChange={(v) => set('processorCapacity', v)}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <SafetyPanel f={f} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { grams1, gramsInt } from '../engine';
-import { buildCookSteps, type CookStep } from '../cook/steps';
+import { buildCookSteps, type Amount, type CookStep } from '../cook/steps';
 import { useApp, type TimerState } from '../store';
 import { Notice } from './components';
 
@@ -127,6 +127,41 @@ function Timer({ step, now }: { step: CookStep; now: number }) {
   );
 }
 
+function AmountList({ title, amounts, checks, toggle }: { title?: string; amounts: Amount[]; checks: Record<string, boolean>; toggle: (id: string) => void }) {
+  return (
+    <div className="rounded-3xl bg-card border border-line p-4">
+      {title && <p className="text-sm text-muted mb-1">{title}</p>}
+      {amounts.map((a) => {
+        const done = a.checkId ? checks[a.checkId] : false;
+        const row = (
+          <div className={`flex items-baseline gap-3 py-3 ${done ? 'opacity-50' : ''}`}>
+            {a.checkId && (
+              <span className={`size-7 shrink-0 rounded-lg border-2 grid place-items-center self-center ${done ? 'bg-ok border-ok text-bg' : 'border-line'}`} aria-hidden>
+                {done ? '✓' : ''}
+              </span>
+            )}
+            <span className={`flex-1 text-lg ${a.emphasis ? 'font-bold text-amber-200' : ''}`}>{a.label}</span>
+            <span className="text-3xl font-black tabular-nums" dir="ltr">
+              {fmtG(a.grams)}
+            </span>
+            <span className="text-sm text-muted">גרם</span>
+          </div>
+        );
+        return a.checkId ? (
+          <button key={a.checkId} type="button" role="checkbox" aria-checked={!!done} onClick={() => toggle(a.checkId!)} className="w-full text-right border-b border-line last:border-0">
+            {row}
+          </button>
+        ) : (
+          <div key={a.label} className="border-b border-line last:border-0">
+            {row}
+          </div>
+        );
+      })}
+      {amounts.some((a) => a.checkId) && <p className="text-xs text-muted mt-2">לוחצים על שורה כשהיא שקולה.</p>}
+    </div>
+  );
+}
+
 export function CookMode() {
   const { cook, patchCook, endCook, go } = useApp();
   const steps = useMemo(() => (cook ? buildCookSteps(cook.snapshot) : []), [cook?.snapshot]);
@@ -161,6 +196,11 @@ export function CookMode() {
   const otherTimer = Object.entries(cook.timers).find(([id, t]) => id !== step.id && t.endsAt != null);
   const otherStep = otherTimer ? steps.find((s) => s.id === otherTimer[0]) : null;
   const needConfirm = step.confirm && !cook.checks[step.confirm.id];
+  const lines = step.lines?.map((l) => (
+    <p key={l} className="text-xl leading-relaxed">
+      {l}
+    </p>
+  ));
 
   return (
     <div className="min-h-dvh max-w-xl mx-auto px-4 pb-36">
@@ -199,44 +239,11 @@ export function CookMode() {
           </div>
         )}
 
-        {step.amounts && (
-          <div className="rounded-3xl bg-card border border-line p-4">
-            {step.amountsTitle && <p className="text-sm text-muted mb-1">{step.amountsTitle}</p>}
-            {step.amounts.map((a) => {
-              const done = a.checkId ? cook.checks[a.checkId] : false;
-              const Row = (
-                <div className={`flex items-baseline gap-3 py-3 ${done ? 'opacity-50' : ''}`}>
-                  {a.checkId && (
-                    <span className={`size-7 shrink-0 rounded-lg border-2 grid place-items-center self-center ${done ? 'bg-ok border-ok text-bg' : 'border-line'}`} aria-hidden>
-                      {done ? '✓' : ''}
-                    </span>
-                  )}
-                  <span className={`flex-1 text-lg ${a.emphasis ? 'font-bold text-amber-200' : ''}`}>{a.label}</span>
-                  <span className="text-3xl font-black tabular-nums" dir="ltr">
-                    {fmtG(a.grams)}
-                  </span>
-                  <span className="text-sm text-muted">גרם</span>
-                </div>
-              );
-              return a.checkId ? (
-                <button key={a.label} type="button" role="checkbox" aria-checked={!!done} onClick={() => toggle(a.checkId!)} className="w-full text-right border-b border-line last:border-0">
-                  {Row}
-                </button>
-              ) : (
-                <div key={a.label} className="border-b border-line last:border-0">
-                  {Row}
-                </div>
-              );
-            })}
-            {step.amounts.some((a) => a.checkId) && <p className="text-xs text-muted mt-2">לוחצים על שורה כשהיא שקולה.</p>}
-          </div>
-        )}
+        {step.linesFirst && lines}
+        {step.amounts && <AmountList title={step.amountsTitle} amounts={step.amounts} checks={cook.checks} toggle={toggle} />}
+        {step.amounts2 && <AmountList title={step.amounts2Title} amounts={step.amounts2} checks={cook.checks} toggle={toggle} />}
 
-        {step.lines?.map((l) => (
-          <p key={l} className="text-xl leading-relaxed">
-            {l}
-          </p>
-        ))}
+        {!step.linesFirst && lines}
 
         {step.checklist && (
           <div className="space-y-2">

@@ -696,7 +696,37 @@ export function RecipeScreen() {
         ))}
         <Row name="סה״כ תערובת" value={grams(f.batch)} badge="calc" strong />
       </Card>
+      <RemovedByUser />
     </Shell>
+  );
+}
+
+function RemovedByUser() {
+  const { confirmations, set } = useApp();
+  const removed = SOURCE_RECIPE.additives.filter((a) => confirmations[a.id] === 'remove');
+  if (removed.length === 0) return null;
+  return (
+    <Card>
+      <SectionTitle>הוסרו לבקשתך</SectionTitle>
+      {removed.map((a) => (
+        <div key={a.id} className="flex items-center justify-between py-2">
+          <span>
+            {a.name} <span className="text-sm text-muted">({grams(a.gramsPerKgMeatBlock * 5)} גרם ל-5 ק״ג בדף)</span>
+          </span>
+          <button
+            type="button"
+            className="btn-secondary min-h-11"
+            onClick={() => {
+              const next = { ...confirmations };
+              delete next[a.id];
+              set('confirmations', next);
+            }}
+          >
+            להחזיר
+          </button>
+        </div>
+      ))}
+    </Card>
   );
 }
 

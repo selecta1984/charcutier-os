@@ -22,7 +22,7 @@ export const SOURCE_RECIPE: Recipe = {
     { id: 'mace', name: 'משיה', category: 'spice', gramsPerKgMeatBlock: perKg(7.5), safetyCritical: false, requiresVerification: false, provenance: 'source', enabled: true },
     { id: 'caraway', name: 'קימל טחון', category: 'spice', gramsPerKgMeatBlock: perKg(25), safetyCritical: false, requiresVerification: false, provenance: 'source', enabled: true },
     { id: 'dextrose', name: 'סוכר ענבים', category: 'sugar', gramsPerKgMeatBlock: perKg(50), role: 'איזון טעם', safetyCritical: false, requiresVerification: false, provenance: 'source', enabled: true },
-    { id: 'phosphate', name: 'פוספט', category: 'phosphate', gramsPerKgMeatBlock: 0, role: 'בהתאם לסוגו, עשוי לסייע בהחזקת מים ומיצוי חלבונים', safetyCritical: true, requiresVerification: true, provenance: 'needs_verification', enabled: false, note: 'בדף בכתב יד: 6 גרם ל-5 ק״ג (0.12%). סוג הפוספט לא ידוע — כבוי עד שיוגדר' },
+    { id: 'phosphate', name: 'פוספט לקוטר', category: 'phosphate', gramsPerKgMeatBlock: perKg(6), role: 'מסייע להחזקת מים ומיצוי חלבונים', safetyCritical: true, requiresVerification: false, provenance: 'source', enabled: true, note: 'מהדף בכתב יד: 6 גרם ל-5 ק״ג = 1,200 מ״ג/ק״ג. המגבלה באירופה לנקניקיות אמולסיה: 5,000 מ״ג/ק״ג — גם אם כל המוצר פוספט טהור, בתוך המגבלה. על השקית: להשתמש לפני 06/03/25' },
   ],
 };
 

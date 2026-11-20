@@ -37,6 +37,8 @@ export interface AppState {
   confirmations: Record<string, 'keep' | 'remove'>;
   profileId: string | null;
   scaleResolution: number;
+  /** grams of meat (lean + fat) the food processor takes per round */
+  processorCapacity: number;
   cook: CookState | null;
   go: (s: Screen) => void;
   startCook: (snap: CookSnapshot) => void;
@@ -99,9 +101,10 @@ export const useApp = create<AppState>()(
       rounding: { target: 2500, step: 100, tol: DEFAULT_TOLERANCES, selected: 0 },
       cure: SUPPLIER_CURE,
       recipeId: RECIPES[0].id,
-      confirmations: {},
+      confirmations: { mace: 'remove' },
       profileId: 'eu-2023-2108',
       scaleResolution: 1,
+      processorCapacity: 1000,
       cook: null,
       startCook: (snapshot) => set({ cook: { snapshot, step: 0, checks: {}, timers: {} }, screen: 'cook' }),
       patchCook: (p) => set((st) => (st.cook ? { cook: { ...st.cook, ...p } } : {})),
@@ -120,7 +123,7 @@ export const useApp = create<AppState>()(
         const d = data as Record<string, unknown>;
         if (d.app !== 'charcutier-os') throw new Error('הקובץ אינו גיבוי של מעבדת הנקניקיות');
         const s = d.state as Partial<AppState>;
-        const allowed: (keyof AppState)[] = ['weight', 'inventory', 'count', 'rounding', 'cure', 'recipeId', 'confirmations', 'profileId', 'scaleResolution'];
+        const allowed: (keyof AppState)[] = ['weight', 'inventory', 'count', 'rounding', 'cure', 'recipeId', 'confirmations', 'profileId', 'scaleResolution', 'processorCapacity'];
         const patch: Partial<AppState> = {};
         for (const k of allowed) if (k in s) (patch as Record<string, unknown>)[k] = s[k];
         set(patch);
@@ -128,13 +131,18 @@ export const useApp = create<AppState>()(
     }),
     {
       name: PERSIST_KEY,
-      version: 3,
+      version: 4,
       // v2: "יש לי בשר" starts from lean meat
       migrate: (persisted, version) => {
         const p = (persisted ?? {}) as Partial<AppState>;
         if (version < 2) p.weight = { basis: 'lean', value: 2000, lossPct: 0 };
         // v3: curing salt verified from the label and the supplier
         if (version < 3 && (!p.cure || !p.cure.verified)) p.cure = SUPPLIER_CURE;
+        // v4: user removed mace; food processor takes ~1 kg meat per round
+        if (version < 4) {
+          p.confirmations = { ...(p.confirmations ?? {}), mace: 'remove' };
+          p.processorCapacity = 1000;
+        }
         if (!p.recipeId) p.recipeId = RECIPES[0].id;
         if (!p.confirmations) p.confirmations = {};
         return p as AppState;
@@ -152,6 +160,7 @@ export const useApp = create<AppState>()(
         confirmations: s.confirmations,
         profileId: s.profileId,
         scaleResolution: s.scaleResolution,
+        processorCapacity: s.processorCapacity,
         cook: s.cook,
       }),
     },
@@ -165,7 +174,7 @@ export function applyConfirmations(r: Recipe, c: Record<string, 'keep' | 'remove
     ...r,
     additives: r.additives.map((a) =>
       c[a.id] === 'remove'
-        ? { ...a, enabled: false, requiresVerification: false, provenance: 'user' as const, note: 'הוסר לפי אישורך' }
+        ? { ...a, enabled: false, requiresVerification: false, provenance: 'user' as const, note: 'הוסר לבקשתך' }
         : c[a.id] === 'keep'
           ? { ...a, requiresVerification: false, provenance: 'user' as const, note: 'אושר על ידך' }
           : a,

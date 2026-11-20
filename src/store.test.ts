@@ -8,7 +8,7 @@ describe('תשובות משתמש על רכיבים', () => {
     const f = fromMeatBlock(r, 5000);
     expect(f.lines.find((l) => l.id === 'mace')).toBeUndefined();
     expect(f.lines.find((l) => l.id === 'paprika')!.requiresVerification).toBe(false);
-    expect(f.batch).toBeCloseTo(6027.5 - 7.5, 9);
+    expect(f.batch).toBeCloseTo(6033.5 - 7.5, 9);
   });
   it('בלי תשובות — המתכון ללא שינוי', () => {
     expect(applyConfirmations(SOURCE_RECIPE, {})).toBe(SOURCE_RECIPE);

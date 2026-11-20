@@ -55,11 +55,11 @@ describe('בדיקה 1: מתכון בסיס 5,000 גרם', () => {
     expect(line(f, 'coriander')).toBeCloseTo(25, 9);
     expect(f.lines.find((l) => l.id === 'nutmeg' || l.id === 'brownsugar')).toBeUndefined();
     expect(line(f, 'mace')).toBeCloseTo(7.5, 9);
-    expect(f.lines.find((l) => l.id === 'phosphate')).toBeUndefined();
+    expect(line(f, 'phosphate')).toBeCloseTo(6, 9);
   });
-  it('תערובת כוללת 6,027.5 גרם, מקדם 1.2055', () => {
-    expect(f.batch).toBeCloseTo(6027.5, 9);
-    expect(batchFactor(R)).toBeCloseTo(1.2055, 12);
+  it('תערובת כוללת 6,033.5 גרם, מקדם 1.2067', () => {
+    expect(f.batch).toBeCloseTo(6033.5, 9);
+    expect(batchFactor(R)).toBeCloseTo(1.2067, 12);
   });
 });
 
@@ -101,8 +101,8 @@ describe('בדיקה 5: היפוך חישוב', () => {
     const b = fromBatch(R, a.batch);
     expect(b.meatBlock).toBeCloseTo(2500, 9);
   });
-  it('2,500 גרם תערובת → 2,073.83 גרם בשר+שומן', () => {
-    expect(fromBatch(R, 2500).meatBlock).toBeCloseTo(2500 / 1.2055, 9);
+  it('2,500 גרם תערובת → 2,071.77 גרם בשר+שומן', () => {
+    expect(fromBatch(R, 2500).meatBlock).toBeCloseTo(2500 / 1.2067, 9);
   });
   it('רזה ושומן כנקודות כניסה', () => {
     expect(fromLean(R, 1400).fat).toBeCloseTo(600, 9);
